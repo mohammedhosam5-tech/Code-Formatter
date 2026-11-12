@@ -1,0 +1,2366 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Local Code Formatter &amp; Readability Tool</title>
+<style>
+  :root{
+    --bg:#eceff3; --panel:#ffffff; --panel-2:#f7f9fc;
+    --ink:#0f1626; --text:#1b2330; --muted:#5b6677; --line:#e2e7ee;
+    --accent:#3b6fed; --accent-d:#2c55c4;
+    --code-bg:#0f1626; --code-text:#d8deea; --code-dim:#5a6582;
+    --ok:#15803d; --ok-bg:#e7f6ec; --warn:#b45309; --warn-bg:#fdf2e2;
+    --bad:#b91c1c; --bad-bg:#fbe9e9; --neutral:#5b6677;
+    --mono:ui-monospace,"Cascadia Code","SFMono-Regular","Consolas","Menlo",monospace;
+    --sans:-apple-system,"Segoe UI",Roboto,system-ui,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{font-family:var(--sans);background:var(--bg);color:var(--text);
+    -webkit-font-smoothing:antialiased;line-height:1.45}
+
+  /* header */
+  header.app{background:var(--ink);color:#fff;padding:18px 24px;
+    border-bottom:3px solid var(--accent)}
+  header.app h1{margin:0;font-size:18px;font-weight:650;letter-spacing:.2px}
+  header.app p{margin:4px 0 0;color:#9aa6bd;font-size:13px}
+
+  .wrap{width:100%;max-width:none;margin:0 auto;padding:20px 32px 44px}
+
+  /* tabbed workspace */
+  .workspace-tabs{position:sticky;top:0;z-index:20;display:flex;gap:8px;align-items:center;
+    margin:-2px 0 16px;padding:10px;background:rgba(236,239,243,.92);backdrop-filter:blur(10px);
+    border:1px solid #dfe5ee;border-radius:12px;box-shadow:0 1px 2px rgba(16,24,40,.04)}
+  .tab-btn{border-radius:999px;padding:9px 15px;background:#fff;color:#334155;border-color:#d7dee9}
+  .tab-btn:hover{background:#f7f9fc;border-color:#b8c4d4}
+  .tab-btn.active{background:var(--accent);border-color:var(--accent);color:#fff;box-shadow:0 6px 14px rgba(59,111,237,.22)}
+  .tab-panel{display:none;animation:tabFade .14s ease}
+  .tab-panel.active{display:block}
+  @keyframes tabFade{from{opacity:.4;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
+  .workspace-title{margin-bottom:12px}
+  .review-badge.secondary{background:#f1f5f9;color:#475569;border-color:#dbe4f0}
+  .compact-cards{margin-bottom:0}
+  .tree-tab .visual-tree{min-height:0;height:auto;max-height:none;overflow:visible}
+  .tree-tab .node-details{max-height:none;overflow:visible;box-shadow:0 -4px 20px rgba(16,24,40,.06)}
+  .tree-tab .visual-tree-shell{gap:12px}
+  .review-tab{display:none}
+  .review-tab.active{display:block}
+  .review-lower{margin-top:12px}
+  .review-lower.single-review{grid-template-columns:1fr}
+
+  /* toolbar */
+  .toolbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:16px}
+  .toolbar .spacer{flex:1}
+  button{font-family:var(--sans);font-size:13px;font-weight:600;cursor:pointer;
+    border-radius:8px;padding:9px 15px;border:1px solid var(--line);
+    background:#fff;color:var(--text);transition:.12s ease}
+  button:hover{border-color:#c7d0dd;background:var(--panel-2)}
+  button:active{transform:translateY(1px)}
+  button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+  button.primary:hover{background:var(--accent-d);border-color:var(--accent-d)}
+  button.export-action{background:#15803d;border-color:#15803d;color:#fff;box-shadow:0 7px 16px rgba(21,128,61,.20)}
+  button.export-action:hover{background:#11632f;border-color:#11632f;box-shadow:0 9px 20px rgba(21,128,61,.26)}
+  button.export-action:disabled{background:#15803d;border-color:#15803d;color:#fff;opacity:.48;box-shadow:none}
+  button.export-action:disabled:hover{background:#15803d;border-color:#15803d}
+  button:disabled{opacity:.55;cursor:not-allowed;transform:none!important}
+  button:disabled:hover{background:#fff;border-color:var(--line)}
+  button.primary:disabled:hover{background:var(--accent);border-color:var(--accent)}
+  button.ghost{background:transparent}
+  .opt{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;color:var(--muted);
+    user-select:none;cursor:pointer;padding-left:6px}
+  .opt input{width:15px;height:15px;accent-color:var(--accent);cursor:pointer}
+
+  /* grid */
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;
+    box-shadow:0 1px 2px rgba(16,24,40,.04);display:flex;flex-direction:column;min-height:340px}
+  .panel .head{display:flex;align-items:center;gap:8px;padding:11px 14px;
+    border-bottom:1px solid var(--line)}
+  .panel .head .title{font-size:12px;font-weight:700;letter-spacing:.6px;
+    text-transform:uppercase;color:var(--muted)}
+  .panel .head .acts{margin-left:auto;display:flex;gap:7px}
+  .panel .head .acts button{padding:6px 11px;font-size:12px}
+
+  textarea#input{flex:1;width:100%;border:0;outline:0;resize:vertical;min-height:300px;
+    padding:14px;font-family:var(--mono);font-size:13px;line-height:1.6;color:var(--text);
+    background:transparent;tab-size:4}
+  textarea#input::placeholder{color:#aeb7c6}
+
+  /* output code view with line numbers */
+  .codewrap{flex:1;background:var(--code-bg);border-radius:0 0 10px 10px;overflow:auto;
+    min-height:300px}
+  .codeview{display:grid;grid-template-columns:auto 1fr;font-family:var(--mono);
+    font-size:13px;line-height:1.6}
+  .codeview .ln{text-align:right;color:var(--code-dim);padding:14px 12px 14px 16px;
+    user-select:none;white-space:pre;border-right:1px solid #1d2741;background:#0c1220}
+  .codeview .code{color:var(--code-text);padding:14px 16px;white-space:pre;overflow-wrap:normal}
+  .codeview .code .empty{color:var(--code-dim);font-style:italic}
+
+  /* smart logic highlighting */
+  .legend{display:flex;flex-wrap:wrap;gap:7px;padding:10px 14px;border-bottom:1px solid #1d2741;
+    background:#111a2d;color:#9aa6bd;font-size:11px}
+  .legend .item{display:inline-flex;align-items:center;gap:6px;padding:4px 8px;border-radius:999px;
+    border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.035)}
+  .legend .sw{width:9px;height:9px;border-radius:50%;display:inline-block;background:currentColor}
+  .tok-decision{color:#b89cff;font-weight:800}
+  .tok-logic{color:#5eead4;font-weight:800}
+  .tok-field{color:#7dd3fc}
+  .tok-string{color:#86efac}
+  .tok-number{color:#c4b5fd}
+  .tok-compare{color:#fdba74;font-weight:700}
+  .tok-math{color:#fde68a;font-weight:700}
+  .tok-codekw{color:#93c5fd;font-weight:750}
+  .tok-punc{color:#94a3b8}
+  .tok-risk{background:rgba(248,113,113,.18);border-bottom:1px solid #f87171}
+  .tok-bracket{font-weight:800;border-radius:4px;padding:0 1px;transition:.12s ease}
+  .br-level-1{color:#e2e8f0}.br-level-2{color:#93c5fd}.br-level-3{color:#c4b5fd}
+  .br-level-4{color:#fcd34d}.br-level-5{color:#f9a8d4}.br-level-6{color:#67e8f9}
+  .tok-bracket.pair-active{background:rgba(59,111,237,.32);box-shadow:0 0 0 1px rgba(147,197,253,.45)}
+
+
+
+  /* phase 2 review assistant */
+  .review-suite{margin:16px 0;display:flex;flex-direction:column;gap:12px}
+  .review-title{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;
+    background:linear-gradient(135deg,#ffffff,#f7f9fc);border:1px solid var(--line);border-radius:10px;
+    padding:13px 15px;box-shadow:0 1px 2px rgba(16,24,40,.04)}
+  .review-title strong{display:block;font-size:13px;letter-spacing:.4px;text-transform:uppercase;color:#263247}
+  .review-title span{display:block;margin-top:3px;font-size:12.5px;color:var(--muted)}
+  .review-badge{white-space:nowrap;font-size:12px;font-weight:800;border-radius:999px;padding:6px 10px;
+    background:#eef4ff;color:#2c55c4;border:1px solid #d7e3ff}
+  .insight-cards{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+  .mini-card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 14px}
+  .mini-card .k{font-size:11px;font-weight:750;letter-spacing:.5px;text-transform:uppercase;color:var(--muted)}
+  .mini-card .v{font-size:17px;font-weight:800;margin-top:5px;display:flex;align-items:center;gap:7px;color:var(--text)}
+  .mini-card .v.low{color:var(--ok)} .mini-card .v.medium{color:var(--warn)}
+  .mini-card .v.high,.mini-card .v.very-high{color:var(--bad)}
+  .field-strip{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:11px 14px;
+    display:grid;grid-template-columns:auto 1fr;gap:12px;align-items:start;box-shadow:0 1px 2px rgba(16,24,40,.04)}
+  .field-strip-head{font-size:11px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;color:var(--muted);padding-top:6px;white-space:nowrap}
+  .field-list{display:flex;flex-wrap:wrap;gap:8px;align-content:flex-start;max-height:96px;overflow:auto}
+  .field-pill{font-family:var(--mono);font-size:12px;border-radius:999px;padding:6px 9px;
+    background:#eef7ff;border:1px solid #cfe8ff;color:#075985}
+  .field-pill.dim{background:#f6f7f9;border-color:var(--line);color:var(--muted);font-family:var(--sans)}
+  .soft-note{font-size:12px;color:var(--muted);margin-top:10px}
+
+
+  /* phase 3 visual interactive decision tree */
+  .visual-tree-box .body{padding:16px}
+  .visual-toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px}
+  .visual-toolbar button{padding:7px 11px;font-size:12px}
+  .visual-tree-shell{display:grid;grid-template-columns:1fr;gap:12px;align-items:start}
+  .visual-tree{background:#fbfcff;border:1px dashed #dbe4f0;border-radius:10px;padding:16px;min-height:120px;
+    height:auto;max-height:none;overflow:visible;color:#263247}
+  .tree-empty{font-size:13px;color:var(--muted);padding:16px;text-align:center;border:1px dashed var(--line);border-radius:9px;background:#fff}
+  .if-node,.result-node{width:100%;text-align:left;border-radius:12px;padding:10px 12px;border:1px solid var(--line);
+    background:#fff;box-shadow:0 1px 2px rgba(16,24,40,.04);cursor:pointer;
+    transition:border-color .22s ease,box-shadow .22s ease,transform .22s ease,background .22s ease;color:var(--text);will-change:transform}
+  .if-node:hover,.result-node:hover{border-color:#b9c8dc;box-shadow:0 10px 26px rgba(16,24,40,.10);transform:translateY(-2px)}
+  .if-node.selected,.result-node.selected{border-color:var(--accent);box-shadow:0 0 0 3px rgba(59,111,237,.14),0 10px 24px rgba(59,111,237,.08)}
+  .if-node{background:linear-gradient(135deg,#ffffff,#f7faff)}
+  .if-head{display:flex;align-items:center;gap:8px;font-weight:850;color:#1e3a8a}
+  .if-chevron{width:22px;height:22px;border-radius:7px;display:inline-flex;align-items:center;justify-content:center;
+    background:#eaf1ff;color:#2c55c4;font-size:12px;flex:0 0 auto;transition:transform .24s ease,background .22s ease,color .22s ease}
+  .if-title{font-size:12px;letter-spacing:.4px;text-transform:uppercase}
+  .if-cond{margin-top:7px;font-size:13px;line-height:1.45;color:#263247}
+  .if-meta{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+  .mini-chip{font-size:11px;font-weight:750;border-radius:999px;padding:4px 7px;border:1px solid #d7e3ff;background:#eef4ff;color:#2c55c4}
+  .tree-children{margin-left:24px;padding-left:22px;border-left:2px solid #dbe4f0;margin-top:11px;display:flex;flex-direction:column;gap:12px;
+    overflow:hidden;opacity:1;transform:translateY(0);transition:max-height .28s cubic-bezier(.2,.8,.2,1),opacity .22s ease,transform .28s cubic-bezier(.2,.8,.2,1),margin-top .28s ease;will-change:max-height,opacity,transform}
+  .tree-children.tree-collapsed{max-height:0!important;opacity:0;transform:translateY(-7px);margin-top:0;pointer-events:none;visibility:hidden}
+  .tree-children.tree-open{opacity:1;transform:translateY(0);visibility:visible}
+  .if-node[aria-expanded="true"] .if-chevron{transform:rotate(90deg);background:#dbeafe}
+  .tree-branch{position:relative;display:grid;grid-template-columns:88px minmax(260px,1fr);gap:12px;align-items:start;
+    transition:opacity .24s ease,transform .24s ease}
+  .tree-branch:before{content:"";position:absolute;left:-17px;top:18px;width:17px;border-top:2px solid #dbe4f0}
+  .branch-label{font-size:11px;font-weight:900;letter-spacing:.5px;text-transform:uppercase;text-align:center;border-radius:999px;padding:5px 6px;margin-top:7px;border:1px solid var(--line);
+    transition:box-shadow .22s ease,transform .22s ease}
+  .branch-label.true{background:#e7f6ec;border-color:#c8e9d2;color:#15803d}
+  .branch-label.false{background:#fff7ed;border-color:#fed7aa;color:#b45309}
+  .branch-body{min-width:0}
+  .result-node{font-size:13px;line-height:1.45;background:#fff}
+  .result-node .result-title{font-size:11px;font-weight:850;letter-spacing:.4px;text-transform:uppercase;color:var(--muted);margin-bottom:5px}
+  .result-node.true{border-left:4px solid #22c55e}
+  .result-node.false{border-left:4px solid #f59e0b}
+  .if-node.modified,.result-node.modified{border-color:#8b5cf6;box-shadow:0 0 0 3px rgba(139,92,246,.14),0 12px 28px rgba(88,28,135,.10);background:linear-gradient(135deg,#ffffff,#faf7ff)}
+  .if-node.modified{border-left:4px solid #8b5cf6}
+  .result-node.modified{border-right:4px solid #8b5cf6}
+  .modified-badge{display:inline-flex;align-items:center;gap:5px;margin-left:8px;font-size:10px;font-weight:900;letter-spacing:.35px;text-transform:uppercase;border-radius:999px;padding:3px 7px;background:#f3e8ff;border:1px solid #d8b4fe;color:#6d28d9;vertical-align:middle}
+  .modified-badge:before{content:"";width:6px;height:6px;border-radius:50%;background:#8b5cf6;box-shadow:0 0 0 3px rgba(139,92,246,.16)}
+  .pending-badge{display:inline-flex;align-items:center;gap:5px;margin-left:8px;font-size:10px;font-weight:900;letter-spacing:.35px;text-transform:uppercase;border-radius:999px;padding:3px 7px;background:#fff7ed;border:1px solid #fed7aa;color:#9a3412;vertical-align:middle}
+  .pending-badge:before{content:"";width:6px;height:6px;border-radius:50%;background:#f59e0b;box-shadow:0 0 0 3px rgba(245,158,11,.16)}
+  .if-node.pending,.result-node.pending{border-color:#f59e0b;box-shadow:0 0 0 3px rgba(245,158,11,.13),0 10px 24px rgba(245,158,11,.08);background:linear-gradient(135deg,#ffffff,#fffaf0)}
+  .if-node.pending{border-left:4px solid #f59e0b}
+  .result-node.pending{border-right:4px solid #f59e0b}
+  .node-details.modified-context{border-color:#d8b4fe;box-shadow:0 0 0 3px rgba(139,92,246,.08)}
+  .node-details.pending-context{border-color:#fed7aa;box-shadow:0 0 0 3px rgba(245,158,11,.08)}
+  .pending-panel{display:none;margin-bottom:10px;border:1px solid #fed7aa;background:#fffbeb;border-radius:10px;padding:10px 12px;color:#713f12;box-shadow:0 8px 22px rgba(15,23,42,.06)}
+  .pending-panel.show{display:block;animation:toastIn .22s ease both}
+  .pending-panel-head{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;justify-content:space-between;margin-bottom:8px}
+  .pending-panel-title{font-size:12px;font-weight:900;letter-spacing:.45px;text-transform:uppercase;color:#92400e}
+  .pending-list{display:flex;flex-direction:column;gap:7px;margin:0;padding:0;list-style:none}
+  .pending-item{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:center;border:1px solid #fde68a;background:#fff;border-radius:8px;padding:8px 9px}
+  .pending-item-main{min-width:0;font-size:12px;line-height:1.45;color:#334155}
+  .pending-item-main strong{color:#263247}
+  .pending-item-main code{font-family:var(--mono);font-size:11px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:2px 5px;color:#334155}
+  .pending-item-actions{display:flex;gap:6px;align-items:center}
+  .pending-item-actions button{padding:5px 8px;font-size:11px}
+  .pending-summary{font-size:12px;color:#92400e;margin-top:8px}
+  .tree-toast{display:none;margin-bottom:10px;border-radius:10px;padding:9px 12px;font-size:12.5px;font-weight:750;border:1px solid #bfdbfe;background:#eff6ff;color:#1d4ed8;box-shadow:0 8px 22px rgba(15,23,42,.08)}
+  .tree-toast.show{display:block;animation:toastIn .22s ease both}
+  .tree-toast.ok{border-color:#bbf7d0;background:#ecfdf3;color:#166534}
+  .tree-toast.warn{border-color:#fed7aa;background:#fff7ed;color:#9a3412}
+  @keyframes toastIn{from{opacity:0;transform:translateY(-5px)}to{opacity:1;transform:translateY(0)}}
+  .node-details{background:#ffffff;border:1px solid var(--line);border-radius:10px;min-height:96px;max-height:none;overflow:visible;transition:box-shadow .22s ease,border-color .22s ease}
+  .selected-node-bar{padding:11px 12px;border-bottom:1px solid var(--line);background:#f7f9fc;
+    display:flex;flex-wrap:wrap;gap:10px 14px;align-items:center;justify-content:space-between}
+  .selected-node-title{display:flex;flex-wrap:wrap;gap:8px;align-items:center;min-width:260px}
+  .selected-node-title strong{font-size:13px;color:#263247}
+  .selected-node-title span{font-size:12px;color:var(--muted)}
+  .selected-node-meta{display:flex;flex-wrap:wrap;gap:7px;align-items:center;justify-content:flex-end}
+  .selected-node-fields{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+  .selected-node-fields .field-pill{padding:4px 7px;font-size:11px}
+  .selected-node-fields-label{font-size:11px;font-weight:850;letter-spacing:.45px;text-transform:uppercase;color:var(--muted)}
+  .detail-label{font-size:11px;font-weight:850;letter-spacing:.45px;text-transform:uppercase;color:var(--muted)}
+  .detail-empty{padding:16px;font-size:13px;color:var(--muted)}
+
+  .edit-textarea{width:100%;min-height:112px;resize:vertical;border:1px solid #cbd5e1;border-radius:9px;
+    padding:10px 11px;font-family:var(--mono);font-size:13px;line-height:1.55;color:var(--text);background:#fff;outline:0}
+  .edit-textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(59,111,237,.14)}
+  .edit-preview{background:#ffffff;border:1px solid var(--line);border-radius:9px;padding:10px;min-height:112px}
+  .edit-preview pre{margin:5px 0 0;white-space:pre-wrap;word-break:break-word;font-family:var(--mono);font-size:12px;line-height:1.5;color:#263247}
+  .source-range{font-family:var(--mono);font-size:11px;color:#64748b;background:#f1f5f9;border-radius:999px;padding:3px 7px;display:inline-flex;margin-left:7px}
+
+  .details-refresh{animation:detailFadeSlide .22s ease both}
+  @keyframes detailFadeSlide{from{opacity:.72;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+  .tree-motion-pulse{animation:treePulse .22s ease both}
+  @keyframes treePulse{from{opacity:.86}to{opacity:1}}
+  @media (prefers-reduced-motion: reduce){
+    .if-node,.result-node,.if-chevron,.tree-children,.tree-branch,.branch-label,.node-details,.node-details.modified-context,.details-refresh,.tree-motion-pulse,.tree-toast.show,.pending-panel.show{transition:none!important;animation:none!important;transform:none!important}
+  }
+
+
+  /* phase 5.6 modal tree editor */
+  .tree-tab .node-details{min-height:0;box-shadow:0 1px 2px rgba(16,24,40,.04)}
+  .compact-node-help{font-size:12px;color:var(--muted);padding:10px 12px;border-top:1px solid var(--line);background:#fff}
+  .node-details .selected-node-bar{border-bottom:0}
+  .modal-backdrop{position:fixed;inset:0;z-index:60;display:none;align-items:center;justify-content:center;
+    padding:22px;background:rgba(15,22,38,.42);backdrop-filter:blur(7px)}
+  .modal-backdrop.open{display:flex;animation:modalFade .18s ease both}
+  .modal-window{width:min(980px,calc(100vw - 44px));max-height:min(86vh,760px);display:flex;flex-direction:column;
+    background:#fff;border:1px solid #dbe4f0;border-radius:16px;box-shadow:0 26px 80px rgba(15,23,42,.28);overflow:hidden;
+    animation:modalRise .22s cubic-bezier(.2,.8,.2,1) both}
+  .modal-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;padding:16px 18px;background:linear-gradient(135deg,#ffffff,#f7f9fc);border-bottom:1px solid var(--line)}
+  .modal-title{display:flex;flex-direction:column;gap:3px;min-width:0}
+  .modal-title strong{font-size:15px;color:#263247}
+  .modal-title span{font-size:12px;color:var(--muted)}
+  .modal-close{width:34px;height:34px;padding:0;border-radius:10px;font-size:20px;line-height:1;background:#fff;flex:0 0 auto}
+  .modal-body{padding:16px 18px;overflow:auto}
+  .modal-meta{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px}
+  .modal-edit-grid{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,.9fr);gap:14px}
+  .modal-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:13px;align-items:center}
+  .modal-actions button{padding:8px 12px;font-size:12px}
+  .modal-note{font-size:12px;color:var(--muted);margin-top:9px}
+  .modal-note.warn{color:#b45309}.modal-note.bad{color:#b91c1c}.modal-note.ok{color:#15803d}
+  body.modal-lock{overflow:hidden}
+  @keyframes modalFade{from{opacity:0}to{opacity:1}}
+  @keyframes modalRise{from{opacity:.7;transform:translateY(10px) scale(.985)}to{opacity:1;transform:translateY(0) scale(1)}}
+  @media(max-width:900px){.modal-edit-grid{grid-template-columns:1fr}.modal-backdrop{padding:12px}.modal-window{width:calc(100vw - 24px);max-height:90vh}}
+  @media (prefers-reduced-motion: reduce){.modal-backdrop.open,.modal-window{animation:none!important}.modal-backdrop{backdrop-filter:none}}
+
+
+  /* status cards */
+  .cards{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:16px 0}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 14px}
+  .card .k{font-size:11px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--muted)}
+  .card .v{font-size:17px;font-weight:700;margin-top:5px;display:flex;align-items:center;gap:7px}
+  .dot{width:9px;height:9px;border-radius:50%;background:var(--neutral);display:inline-block}
+  .dot.ok{background:var(--ok)} .dot.bad{background:var(--bad)} .dot.warn{background:var(--warn)}
+  .v.ok{color:var(--ok)} .v.bad{color:var(--bad)} .v.warn{color:var(--warn)}
+
+  /* lower panels */
+  .lower{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  .box{background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+  .box .head{padding:11px 14px;border-bottom:1px solid var(--line);
+    font-size:12px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--muted)}
+  .box .body{padding:14px}
+  .muted{color:var(--muted)}
+  ul.warns{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
+  ul.warns li{display:flex;gap:10px;align-items:flex-start;font-size:13px;padding:9px 11px;
+    border-radius:8px;border:1px solid var(--line)}
+  ul.warns li.warn{background:var(--warn-bg);border-color:#f3dcb8;color:#8a4708}
+  ul.warns li.ok{background:var(--ok-bg);border-color:#c8e9d2;color:#15662f}
+  ul.warns li .ic{font-weight:800;line-height:1.4}
+  .badge{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;
+    padding:5px 10px;border-radius:999px}
+  .badge.ok{background:var(--ok-bg);color:var(--ok)}
+  .badge.warn{background:var(--warn-bg);color:var(--warn)}
+  .hint{font-size:12px;color:var(--muted);margin-top:14px}
+
+  @media(max-width:900px){
+    .grid,.lower{grid-template-columns:1fr}
+    .cards,.insight-cards{grid-template-columns:repeat(2,1fr)}
+    .field-strip{grid-template-columns:1fr}
+    .review-title{flex-direction:column}
+    .review-badge{white-space:normal}
+  }
+</style>
+</head>
+<body>
+<header class="app">
+  <h1>Local Code Formatter &amp; Readability Tool</h1>
+  <p>For Oracle CPQ, Groovy, SQL-like formulas, and implementation scripts — runs fully offline, no install.</p>
+</header>
+
+<div class="wrap">
+  <nav class="workspace-tabs" aria-label="Workspace tabs">
+    <button class="tab-btn active" type="button" data-tab="formatter">Formatter</button>
+    <button class="tab-btn" type="button" data-tab="tree">Visual Tree Editor</button>
+    <button class="tab-btn" type="button" data-tab="review">Review &amp; Validation</button>
+  </nav>
+
+  <section class="tab-panel active" id="tabFormatter" data-panel="formatter" aria-label="Formatter workspace">
+    <div class="toolbar">
+      <button id="btnFormat" class="primary">Format Code</button>
+      <label class="opt" title="Uppercases IF / OR / AND for formula display. Auto-disabled for Groovy/JS (code with { } or ;) to avoid changing case-sensitive logic.">
+        <input type="checkbox" id="optUpper" checked /> Uppercase IF / OR / AND keywords
+      </label>
+      <label class="opt" title="Adds visual-only semantic colors for IF logic, fields, values, operators, numbers, and bracket nesting. Copy/download remains plain text.">
+        <input type="checkbox" id="optHighlight" checked /> Smart highlighting
+      </label>
+      <span class="spacer"></span>
+      <span id="preserveBadge"></span>
+    </div>
+
+    <div class="grid">
+      <!-- INPUT -->
+      <section class="panel">
+        <div class="head">
+          <span class="title">Input — paste formula / code</span>
+          <div class="acts">
+            <button id="btnSample" class="ghost">Load sample</button>
+            <button id="btnClearIn" class="ghost">Clear</button>
+          </div>
+        </div>
+        <textarea id="input" spellcheck="false" placeholder='Paste a formula or script here, e.g.
+
+if(((customerSegment_c = "Enterprise") OR (customerSegment_c = "Strategic")),(((baseCost_c*markupPercentage_c)/100)+baseCost_c),if((customerSegment_c = "Government"),(((contractCost_c*markupPercentage_c)/100)+contractCost_c),if((customerSegment_c = "SMB"),(((standardCost_c*markupPercentage_c)/100)+standardCost_c),0)))'></textarea>
+      </section>
+
+      <!-- OUTPUT -->
+      <section class="panel">
+        <div class="head">
+          <span class="title">Formatted output</span>
+          <div class="acts">
+            <button id="btnCopy">Copy output</button>
+            <button id="btnDownload">Download .txt</button>
+            <button id="btnClearOut" class="ghost">Clear</button>
+          </div>
+        </div>
+        <div class="legend" id="highlightLegend" aria-label="Smart highlighting legend">
+          <span class="item tok-decision"><span class="sw"></span>Decision</span>
+          <span class="item tok-logic"><span class="sw"></span>Logic</span>
+          <span class="item tok-field"><span class="sw"></span>Field</span>
+          <span class="item tok-string"><span class="sw"></span>Text</span>
+          <span class="item tok-number"><span class="sw"></span>Number</span>
+          <span class="item tok-compare"><span class="sw"></span>Compare</span>
+          <span class="item tok-math"><span class="sw"></span>Math</span>
+        </div>
+        <div class="codewrap">
+          <div class="codeview" id="output">
+            <div class="ln">1</div>
+            <div class="code"><span class="empty">Formatted code will appear here.</span></div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <!-- STATUS CARDS -->
+    <div class="cards compact-cards">
+      <div class="card"><div class="k">Characters</div><div class="v" id="cChars">0</div></div>
+      <div class="card"><div class="k">Parentheses</div><div class="v" id="cParen"><span class="dot"></span>—</div></div>
+      <div class="card"><div class="k">Quotes</div><div class="v" id="cQuote"><span class="dot"></span>—</div></div>
+      <div class="card"><div class="k">Formatting</div><div class="v" id="cFmt"><span class="dot"></span>Not formatted</div></div>
+    </div>
+  </section>
+
+  <section class="tab-panel tree-tab" id="tabTree" data-panel="tree" aria-label="Visual Tree Editor workspace">
+    <div class="review-title workspace-title">
+      <div>
+        <strong>Visual Tree Editor</strong>
+        <span>Navigate nested IF logic visually, expand/collapse branches, select a node, edit its exact source segment, then auto-rebuild the formula.</span>
+      </div>
+      <span class="review-badge" id="reviewStatus">Waiting for input</span>
+    </div>
+
+    <div class="box visual-tree-box tree-workspace">
+      <div class="head">Visual interactive logic tree</div>
+      <div class="body">
+        <div class="visual-toolbar">
+          <button id="btnTreeExpandAll" class="ghost" type="button">Expand all</button>
+          <button id="btnTreeCollapseAll" class="ghost" type="button">Collapse all</button>
+          <button id="btnTreeReset" class="ghost" type="button">Reset view</button>
+          <button id="btnExportHtml" class="export-action" type="button" disabled>Export HTML</button>
+          <button id="btnApplyPendingAll" class="primary" type="button" disabled>Apply all pending (0)</button>
+          <button id="btnDiscardPending" class="ghost" type="button" disabled>Discard pending</button>
+          <button id="btnTreeUndoEdit" class="ghost" type="button" disabled>Undo last tree edit</button>
+        </div>
+        <div class="tree-toast" id="treeToast" role="status" aria-live="polite"></div>
+        <div class="pending-panel" id="pendingChangesPanel" aria-live="polite"></div>
+        <div class="visual-tree-shell">
+          <div class="visual-tree" id="visualTree">
+            <div class="tree-empty">Format a nested IF formula to generate a clickable decision tree.</div>
+          </div>
+          <div class="node-details" id="nodeDetails">
+            <div class="detail-empty">Click a node to select it. Double-click any IF or return card to open the editor.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="tab-panel review-tab" id="tabReview" data-panel="review" aria-label="Review and validation workspace">
+    <div class="review-title workspace-title">
+      <div>
+        <strong>Review &amp; Validation</strong>
+        <span>Complexity metrics, field dependency extraction, validation warnings, and decision tree review.</span>
+      </div>
+      <span class="review-badge secondary">Analysis only — no logic changes</span>
+    </div>
+
+    <div class="insight-cards">
+      <div class="mini-card"><div class="k">Complexity</div><div class="v" id="cComplexity">—</div></div>
+      <div class="mini-card"><div class="k">Nested IFs</div><div class="v" id="cIfs">0</div></div>
+      <div class="mini-card"><div class="k">Fields Used</div><div class="v" id="cFieldsUsed">0</div></div>
+      <div class="mini-card"><div class="k">Max Depth</div><div class="v" id="cDepth">0</div></div>
+    </div>
+
+    <div class="field-strip" aria-label="Field dependencies detected">
+      <div class="field-strip-head">Field dependencies</div>
+      <div class="field-list" id="fieldList"><span class="field-pill dim">No fields detected yet.</span></div>
+    </div>
+
+    <div class="lower review-lower single-review">
+      <div class="box">
+        <div class="head">Validation (warnings only — logic is never changed)</div>
+        <div class="body">
+          <ul class="warns" id="warns"><li class="ok"><span class="ic">✓</span><span>Paste code and click <b>Format Code</b> to run checks.</span></li></ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <p class="hint">Tip: press <b>Ctrl/Cmd + Enter</b> in the input box to format. Everything runs locally in your browser — nothing is uploaded.</p>
+</div>
+
+<div class="modal-backdrop" id="treeEditorModal" role="dialog" aria-modal="true" aria-labelledby="treeEditorModalTitle" aria-hidden="true">
+  <div class="modal-window">
+    <div class="modal-head">
+      <div class="modal-title">
+        <strong id="treeEditorModalTitle">Edit selected tree node</strong>
+        <span id="treeEditorModalSubtitle">Double-click a tree node to edit its exact source segment.</span>
+      </div>
+      <button id="btnCloseTreeEditorModal" class="modal-close" type="button" aria-label="Close editor">×</button>
+    </div>
+    <div class="modal-body" id="treeEditorModalBody">
+      <div class="detail-empty">No node selected yet.</div>
+    </div>
+  </div>
+</div>
+
+<!-- ================= FORMATTER ENGINE (tested) ================= -->
+<script>
+/* ============================================================
+   Local Code Formatter — core engine (logic-preserving)
+   Pure functions, no DOM. Tested in Node, reused inside index.html.
+   ============================================================ */
+
+(function (root) {
+  'use strict';
+
+  // ---- config ----
+  var INDENT = '    ';      // 4 spaces per nesting level
+  var MAX_INLINE = 90;      // groups longer than this break onto multiple lines
+
+  var LOGICAL_KW = { 'or': 1, 'and': 1 };       // word operators (case-insensitive)
+  var LOGICAL_OP = { '||': 1, '&&': 1 };         // symbol logical operators
+  var ADDITIVE   = { '+': 1, '-': 1 };
+
+  // ---------------- Tokenizer ----------------
+  // Produces atomic tokens. Strings are kept verbatim and never altered.
+  function tokenize(src) {
+    var tokens = [];
+    var i = 0, n = src.length;
+    var TWO = { '<=':1,'>=':1,'==':1,'!=':1,'<>':1,'&&':1,'||':1,'**':1,'+=':1,'-=':1,'*=':1,'/=':1,'=>':1,':=':1 };
+    var isIdStart = function (c) { return /[A-Za-z_$]/.test(c); };
+    var isIdPart  = function (c) { return /[A-Za-z0-9_$.]/.test(c); };
+
+    while (i < n) {
+      var c = src[i];
+
+      if (/\s/.test(c)) { i++; continue; }              // whitespace ignored
+
+      // string literal (single or double quote) — preserved exactly
+      if (c === '"' || c === "'") {
+        var j = i + 1, val = c, closed = false;
+        while (j < n) {
+          var cj = src[j];
+          if (cj === '\\' && j + 1 < n) { val += cj + src[j + 1]; j += 2; continue; }
+          val += cj;
+          if (cj === c) { closed = true; j++; break; }
+          j++;
+        }
+        tokens.push({ type: 'string', value: val, closed: closed, start: i, end: j });
+        i = j; continue;
+      }
+
+      // number
+      if (/[0-9]/.test(c)) {
+        var k = i + 1;
+        while (k < n && /[0-9._]/.test(src[k])) k++;
+        tokens.push({ type: 'number', value: src.slice(i, k), start: i, end: k });
+        i = k; continue;
+      }
+
+      // identifier / keyword
+      if (isIdStart(c)) {
+        var m = i + 1;
+        while (m < n && isIdPart(src[m])) m++;
+        tokens.push({ type: 'ident', value: src.slice(i, m), start: i, end: m });
+        i = m; continue;
+      }
+
+      // brackets
+      if (c === '(') { tokens.push({ type: 'lparen', value: '(', bracket: '(', start: i, end: i + 1 }); i++; continue; }
+      if (c === ')') { tokens.push({ type: 'rparen', value: ')', bracket: '(', start: i, end: i + 1 }); i++; continue; }
+      if (c === '{') { tokens.push({ type: 'lparen', value: '{', bracket: '{', start: i, end: i + 1 }); i++; continue; }
+      if (c === '}') { tokens.push({ type: 'rparen', value: '}', bracket: '{', start: i, end: i + 1 }); i++; continue; }
+      if (c === '[') { tokens.push({ type: 'lparen', value: '[', bracket: '[', start: i, end: i + 1 }); i++; continue; }
+      if (c === ']') { tokens.push({ type: 'rparen', value: ']', bracket: '[', start: i, end: i + 1 }); i++; continue; }
+      if (c === ',') { tokens.push({ type: 'comma', value: ',', start: i, end: i + 1 }); i++; continue; }
+      if (c === ';') { tokens.push({ type: 'semicolon', value: ';', start: i, end: i + 1 }); i++; continue; }
+
+      // operators (two-char first)
+      var two = src.substr(i, 2);
+      if (TWO[two]) { tokens.push({ type: 'op', value: two, start: i, end: i + 2 }); i += 2; continue; }
+
+      // single char operator / unknown punctuation (kept verbatim)
+      tokens.push({ type: 'op', value: c, start: i, end: i + 1 }); i++;
+    }
+    return tokens;
+  }
+
+  // ---------------- Parser (bracket tree) ----------------
+  function parse(tokens) {
+    var pos = 0;
+    function parseSeq(closer) {
+      var items = [];
+      var closed = !closer;
+      var closeEnd = null;
+      while (pos < tokens.length) {
+        var t = tokens[pos];
+        if (t.type === 'rparen') {
+          if (closer && t.bracket === closer) { pos++; closed = true; closeEnd = t.end; break; }
+          items.push(t); pos++; continue;         // stray/mismatched closer: keep, don't crash
+        }
+        if (t.type === 'lparen') {
+          var openChar = t.bracket;
+          var openTok = t;
+          pos++;
+          var child = parseSeq(openChar);
+          var funcName = null;
+          var funcStart = openTok.start;
+          if ((openChar === '(' || openChar === '[') && items.length &&
+              items[items.length - 1].type === 'ident') {
+            var pv = items[items.length - 1].value.toLowerCase();
+            var isWordOp = LOGICAL_KW[pv] || pv === 'not' || pv === 'in';
+            if (!isWordOp) {
+              var fnTok = items.pop();
+              funcName = fnTok.value;        // normal function/index call
+              funcStart = fnTok.start;
+            } else {
+              // "OR"/"AND" before "(" is a FUNCTION only in function position
+              // (nothing, or a non-operand, precedes it) — e.g. Excel AND(a,b).
+              // Otherwise it is an infix operator — e.g. CPQ (a) OR (b).
+              var before = items[items.length - 2];
+              if (!before || !isOperand(before)) {
+                var logicFnTok = items.pop();
+                funcName = logicFnTok.value;
+                funcStart = logicFnTok.start;
+              }
+            }
+          }
+          items.push({ type: 'group', bracket: openChar, funcName: funcName,
+                       items: child.items, closed: child.closed,
+                       start: funcStart, openStart: openTok.start, openEnd: openTok.end,
+                       end: child.closeEnd || openTok.end, closeEnd: child.closeEnd || null });
+          continue;
+        }
+        items.push(t); pos++;
+      }
+      return { items: items, closed: closed, closeEnd: closeEnd };
+    }
+    return parseSeq(null).items;
+  }
+
+  // ---------------- helpers ----------------
+  function closeChar(open) { return open === '(' ? ')' : open === '{' ? '}' : ']'; }
+
+  function isOperand(node) {
+    if (!node) return false;
+    if (node.type === 'group') return true;
+    if (node.type === 'ident') return !LOGICAL_KW[node.value.toLowerCase()];
+    return node.type === 'string' || node.type === 'number';
+  }
+
+  function isUnaryAt(items, k) {
+    var t = items[k];
+    if (!t || t.type !== 'op') return false;
+    if (t.value === '!') return true;
+    if (ADDITIVE[t.value]) return !isOperand(items[k - 1]);
+    return false;
+  }
+  function isBinaryAdditive(items, k) {
+    var t = items[k];
+    return t && t.type === 'op' && ADDITIVE[t.value] && isOperand(items[k - 1]);
+  }
+  function isLogical(items, k) {
+    var t = items[k];
+    if (!t) return false;
+    if (t.type === 'op' && LOGICAL_OP[t.value]) return true;
+    if (t.type === 'ident' && LOGICAL_KW[t.value.toLowerCase()]) return true;
+    return false;
+  }
+  function hasTopLevelSeparator(items) {
+    for (var i = 0; i < items.length; i++)
+      if (items[i].type === 'comma' || items[i].type === 'semicolon') return true;
+    return false;
+  }
+  function hasTopLevelLogical(items) {
+    for (var i = 0; i < items.length; i++) if (isLogical(items, i)) return true;
+    return false;
+  }
+  function hasTopLevelAdditive(items) {
+    for (var i = 0; i < items.length; i++) if (isBinaryAdditive(items, i)) return true;
+    return false;
+  }
+
+  function renderName(funcName, opts) {
+    if (!funcName) return '';
+    if (opts.upper && funcName.toLowerCase() === 'if') return 'IF';
+    return funcName;
+  }
+  function renderToken(node, opts) {
+    if (node.type === 'ident') {
+      var low = node.value.toLowerCase();
+      if (opts.human && !LOGICAL_KW[low]) return humanizeName(node.value);
+      if (opts.upper && (LOGICAL_KW[low] || low === 'if')) return node.value.toUpperCase();
+    }
+    return node.value;
+  }
+
+  // spacing between item k-1 and k for inline rendering
+  function sep(items, k) {
+    var prev = items[k - 1], cur = items[k];
+    if (cur.type === 'comma' || cur.type === 'semicolon') return '';
+    if (prev.type === 'comma' || prev.type === 'semicolon') return ' ';
+    if (cur.type === 'op') return ' ';
+    if (prev.type === 'op') return isUnaryAt(items, k - 1) ? '' : ' ';
+    return ' ';
+  }
+
+  function inlineNode(node, opts) {
+    if (node.type === 'group') {
+      return renderName(node.funcName, opts) + node.bracket +
+             inlineItems(node.items, opts) + closeChar(node.bracket);
+    }
+    return renderToken(node, opts);
+  }
+  function inlineItems(items, opts) {
+    var out = '';
+    for (var k = 0; k < items.length; k++) {
+      out += (k === 0 ? '' : sep(items, k)) + inlineNode(items[k], opts);
+    }
+    return out;
+  }
+
+  // ---------------- block (multi-line) rendering ----------------
+  function shouldBreakGroup(group, opts) {
+    var items = group.items;
+    if (group.bracket === '{' && items.length) return true;   // code blocks always break
+    if (hasTopLevelSeparator(items)) return true;
+    if (hasTopLevelLogical(items)) return true;
+    if (hasTopLevelAdditive(items)) return true;
+    if (inlineNode(group, opts).length > MAX_INLINE) return true;
+    for (var i = 0; i < items.length; i++)
+      if (items[i].type === 'group' && shouldBreakGroup(items[i], opts)) return true;
+    return false;
+  }
+
+  function groupBlockLines(group, opts) {
+    if (!shouldBreakGroup(group, opts)) return [inlineNode(group, opts)];
+    var header = renderName(group.funcName, opts) + group.bracket;
+    var body = itemsBlock(group.items, opts);
+    var out = [header];
+    for (var i = 0; i < body.length; i++) out.push(INDENT + body[i]);
+    out.push(closeChar(group.bracket));
+    return out;
+  }
+
+  // split a flat items list at top-level comma/semicolon
+  function splitTopLevel(items) {
+    var segs = [], cur = [];
+    for (var i = 0; i < items.length; i++) {
+      var t = items[i];
+      if (t.type === 'comma' || t.type === 'semicolon') {
+        segs.push({ items: cur, sepAfter: t.value }); cur = [];
+      } else cur.push(t);
+    }
+    segs.push({ items: cur, sepAfter: null });
+    if (segs.length > 1 && segs[segs.length - 1].items.length === 0) segs.pop();
+    return segs;
+  }
+
+  function itemsBlock(items, opts) {
+    var segs = splitTopLevel(items);
+    var lines = [];
+    for (var s = 0; s < segs.length; s++) {
+      var segLines = exprBlock(segs[s].items, opts);
+      if (segs[s].sepAfter) segLines[segLines.length - 1] += segs[s].sepAfter;
+      lines.push.apply(lines, segLines);
+    }
+    return lines;
+  }
+
+  function exprBlock(items, opts) {
+    if (items.length === 0) return [''];
+    if (hasTopLevelLogical(items)) return splitLogical(items, opts);
+    if (hasTopLevelAdditive(items)) return splitAdditive(items, opts);
+    return seqBlock(items, opts);
+  }
+
+  function splitLogical(items, opts) {
+    var lines = [], start = 0;
+    for (var k = 0; k < items.length; k++) {
+      if (isLogical(items, k)) {
+        var seg = items.slice(start, k);
+        if (seg.length) lines.push.apply(lines, exprBlock(seg, opts));
+        lines.push(renderToken(items[k], opts));   // operator on its own line
+        start = k + 1;
+      }
+    }
+    var tail = items.slice(start);
+    if (tail.length) lines.push.apply(lines, exprBlock(tail, opts));
+    return lines;
+  }
+
+  function splitAdditive(items, opts) {
+    var lines = [], start = 0, pendingOp = null;
+    var flush = function (end) {
+      var term = exprBlock(items.slice(start, end), opts);
+      if (pendingOp) term[0] = pendingOp + ' ' + term[0];
+      lines.push.apply(lines, term);
+    };
+    for (var k = 0; k < items.length; k++) {
+      if (isBinaryAdditive(items, k)) { flush(k); pendingOp = items[k].value; start = k + 1; }
+    }
+    flush(items.length);
+    return lines;
+  }
+
+  function seqBlock(items, opts) {
+    var lines = [], cur = '';
+    for (var k = 0; k < items.length; k++) {
+      var node = items[k];
+      var s = (k === 0 ? '' : sep(items, k));
+      if (node.type === 'group') {
+        var gl = groupBlockLines(node, opts);
+        if (gl.length === 1) { cur += s + gl[0]; }
+        else {
+          cur += s + gl[0]; lines.push(cur);
+          for (var m = 1; m < gl.length - 1; m++) lines.push(gl[m]);
+          cur = gl[gl.length - 1];
+        }
+      } else {
+        cur += s + inlineNode(node, opts);
+      }
+    }
+    lines.push(cur);
+    return lines;
+  }
+
+  // ---------------- public: format ----------------
+  function formatCode(src, options) {
+    var wantUpper = options && 'upper' in options ? !!options.upper : true;
+    // Code mode: presence of {} or ; means case-sensitive code (Groovy/JS).
+    // Never change keyword case there, or we could break the logic.
+    var codeMode = /[{};]/.test(src);
+    var opts = { upper: wantUpper && !codeMode, human: false };
+    var tree = parse(tokenize(src));
+    return itemsBlock(tree, opts).join('\n');
+  }
+
+  // ---------------- logic-preservation check ----------------
+  // Re-tokenizes input and output; sequences must match (case-insensitive
+  // for if/or/and only). Strings/numbers/operators must match exactly.
+  function logicPreserved(src, formatted) {
+    var a = tokenize(src), b = tokenize(formatted);
+    if (a.length !== b.length) return { ok: false, reason: 'token count differs (' + a.length + ' vs ' + b.length + ')' };
+    for (var i = 0; i < a.length; i++) {
+      var x = a[i], y = b[i];
+      if (x.type !== y.type) return { ok: false, reason: 'type mismatch at ' + i };
+      var xv = x.value, yv = y.value;
+      if (x.type === 'ident') {
+        var lx = xv.toLowerCase(), ly = yv.toLowerCase();
+        if ((LOGICAL_KW[lx] || lx === 'if') ) { if (lx !== ly) return { ok: false, reason: 'keyword mismatch at ' + i }; }
+        else if (xv !== yv) return { ok: false, reason: 'identifier changed at ' + i + ': ' + xv + ' -> ' + yv };
+      } else if (xv !== yv) {
+        return { ok: false, reason: x.type + ' changed at ' + i + ': ' + JSON.stringify(xv) + ' -> ' + JSON.stringify(yv) };
+      }
+    }
+    return { ok: true };
+  }
+
+  // ---------------- validation (warnings only) ----------------
+  function validate(src) {
+    var w = [];
+    if (!src || !src.trim()) { w.push({ level: 'warn', msg: 'Input is empty. Paste a formula or script to format.' }); return w; }
+    var tokens = tokenize(src);
+
+    // brackets
+    var stack = [], stray = false, mismatch = false;
+    for (var i = 0; i < tokens.length; i++) {
+      var t = tokens[i];
+      if (t.type === 'lparen') stack.push(t.bracket);
+      else if (t.type === 'rparen') {
+        if (!stack.length) stray = true;
+        else if (stack.pop() !== t.bracket) mismatch = true;
+      }
+    }
+    if (stack.length) w.push({ level: 'warn', msg: 'Unbalanced brackets: ' + stack.length + ' opening bracket(s) never closed.' });
+    if (stray) w.push({ level: 'warn', msg: 'Unbalanced brackets: a closing bracket has no matching opener.' });
+    if (mismatch) w.push({ level: 'warn', msg: 'Mismatched bracket types (e.g. "(" closed by "}").' });
+
+    // quotes
+    for (var q = 0; q < tokens.length; q++)
+      if (tokens[q].type === 'string' && !tokens[q].closed) {
+        w.push({ level: 'warn', msg: 'Unbalanced quotes: a string literal is not closed.' }); break;
+      }
+
+    // possible missing comma / operator — only flag the clearest case:
+    // two adjacent string/number literals with nothing between them.
+    for (var p = 1; p < tokens.length; p++) {
+      var a = tokens[p - 1], b = tokens[p];
+      var aLit = (a.type === 'string' || a.type === 'number');
+      var bLit = (b.type === 'string' || b.type === 'number');
+      if (aLit && bLit) { w.push({ level: 'warn', msg: 'Possible missing comma or operator between two values.' }); break; }
+    }
+
+    // incomplete IF (CPQ if expects 3 arguments: condition, true, false)
+    (function walk(items) {
+      for (var i = 0; i < items.length; i++) {
+        var it = items[i];
+        if (it.type === 'group') {
+          if (it.funcName && it.funcName.toLowerCase() === 'if' && it.closed) {
+            var segs = splitTopLevel(it.items).filter(function (s) { return s.items.length; });
+            if (segs.length < 3)
+              w.push({ level: 'warn', msg: 'Possible incomplete IF: expected if(condition, valueIfTrue, valueIfFalse).' });
+          }
+          walk(it.items);
+        }
+      }
+    })(parse(tokens));
+
+    // trailing operator
+    var last = tokens[tokens.length - 1];
+    if (last && last.type === 'op') w.push({ level: 'warn', msg: 'Expression ends with an operator "' + last.value + '".' });
+
+    if (!w.length) w.push({ level: 'ok', msg: 'No obvious issues detected (heuristic checks only).' });
+    return w;
+  }
+
+  // ---------------- explanation (rule-based, no AI) ----------------
+  function humanizeName(v) {
+    var s = v.replace(/_c$/, '').replace(/^_+/, '');
+    s = s.replace(/_/g, ' ');
+    s = s.replace(/([a-z0-9])([A-Z])/g, '$1 $2');
+    s = s.split(/\s+/).map(function (wd) { return wd ? wd.charAt(0).toUpperCase() + wd.slice(1) : wd; }).join(' ');
+    return s.trim() || v;
+  }
+  function humanInline(items) { return inlineItems(items, { upper: false, human: true }); }
+
+  function unwrap(items) {
+    while (items.length === 1 && items[0].type === 'group' && !items[0].funcName) items = items[0].items;
+    return items;
+  }
+  function describeComparison(p) {
+    var items = unwrap(p);
+    if (items.length >= 3 && items[0].type === 'ident' && items[1].type === 'op') {
+      var field = humanizeName(items[0].value);
+      var op = items[1].value;
+      var verb = (op === '=' || op === '==') ? 'is' : (op === '!=' || op === '<>') ? 'is not' : op;
+      return { field: field, verb: verb, rhs: humanInline(items.slice(2)) };
+    }
+    return { field: null, verb: null, rhs: humanInline(items) };
+  }
+  function describeCondition(condItems) {
+    var items = unwrap(condItems);
+    var parts = [], start = 0, opKind = null;
+    for (var k = 0; k < items.length; k++) {
+      if (isLogical(items, k)) {
+        parts.push(items.slice(start, k));
+        opKind = (items[k].type === 'ident') ? items[k].value.toLowerCase() : (LOGICAL_OP[items[k].value] && items[k].value === '||' ? 'or' : 'and');
+        start = k + 1;
+      }
+    }
+    parts.push(items.slice(start));
+    var described = parts.map(describeComparison);
+    // collapse "same field, all OR" -> Field is A or B
+    if (opKind === 'or' && described.length > 1 && described[0].field) {
+      var sameField = described.every(function (d) { return d.field === described[0].field && d.verb === described[0].verb; });
+      if (sameField)
+        return described[0].field + ' ' + described[0].verb + ' ' + described.map(function (d) { return d.rhs; }).join(' or ');
+    }
+    return described.map(function (d) { return d.field ? (d.field + ' ' + d.verb + ' ' + d.rhs) : d.rhs; })
+                    .join(opKind === 'and' ? ' and ' : ' or ');
+  }
+
+
+  // ---------------- review assistant helpers ----------------
+  function uniqueSorted(values) {
+    var seen = {}, out = [];
+    for (var i = 0; i < values.length; i++) {
+      var v = values[i];
+      if (v && !seen[v]) { seen[v] = true; out.push(v); }
+    }
+    return out.sort(function (a, b) { return a.toLowerCase() < b.toLowerCase() ? -1 : 1; });
+  }
+
+  function extractFields(src) {
+    var tokens = tokenize(src);
+    var exclude = {
+      'if':1,'iif':1,'case':1,'when':1,'then':1,'else':1,'end':1,'and':1,'or':1,'not':1,'in':1,
+      'nvl':1,'nvl2':1,'decode':1,'switch':1,'true':1,'false':1,'null':1,
+      'def':1,'var':1,'let':1,'const':1,'return':1,'while':1,'for':1,'break':1,'continue':1,'new':1,
+      'class':1,'function':1,'this':1,'try':1,'catch':1,'finally':1,'throw':1,'import':1,'package':1,
+      'string':1,'number':1,'boolean':1,'object':1,'array':1,'map':1,'list':1,
+      'newview':1,'appendviewcriteria':1,'createviewcriteria':1,'createrow':1,'ensurecriteriaitem':1,
+      'executequery':1,'hasnext':1,'next':1,'contains':1,'add':1,'equals':1,'tolowercase':1,'touppercase':1
+    };
+    var fields = [];
+    for (var i = 0; i < tokens.length; i++) {
+      var t = tokens[i];
+      if (t.type !== 'ident') continue;
+      var v = t.value, low = v.toLowerCase();
+      if (exclude[low] || LOGICAL_KW[low]) continue;
+      var next = tokens[i + 1];
+      var looksLikeFunction = next && next.type === 'lparen' && next.bracket === '(';
+      var looksLikeOracleField = /_c$/i.test(v) || v.indexOf('_') >= 0 || v.indexOf('.') >= 0 || /^_[A-Za-z]/.test(v);
+      if (looksLikeFunction && !looksLikeOracleField) continue;
+      fields.push(v);
+    }
+    return uniqueSorted(fields);
+  }
+
+  function complexityMetrics(src, formatted) {
+    var tokens = tokenize(src);
+    var fields = extractFields(src);
+    var depth = 0, maxDepth = 0, ifCount = 0, logicCount = 0, compareCount = 0, mathCount = 0, stringCount = 0, numberCount = 0;
+    var compareOps = { '=':1, '<':1, '>':1, '<=':1, '>=':1, '==':1, '!=':1, '<>':1, '=>':1, ':=':1 };
+    var mathOps = { '+':1, '-':1, '*':1, '/':1, '%':1, '**':1, '+=':1, '-=':1, '*=':1, '/=':1 };
+    for (var i = 0; i < tokens.length; i++) {
+      var t = tokens[i], low = t.value ? String(t.value).toLowerCase() : '';
+      if (t.type === 'lparen') { depth++; if (depth > maxDepth) maxDepth = depth; }
+      else if (t.type === 'rparen') depth = Math.max(0, depth - 1);
+      if (t.type === 'ident' && (low === 'if' || low === 'iif')) ifCount++;
+      if ((t.type === 'ident' && LOGICAL_KW[low]) || (t.type === 'op' && LOGICAL_OP[t.value])) logicCount++;
+      if (t.type === 'op' && compareOps[t.value]) compareCount++;
+      if (t.type === 'op' && mathOps[t.value]) mathCount++;
+      if (t.type === 'string') stringCount++;
+      if (t.type === 'number') numberCount++;
+    }
+    var warningCount = validate(src).filter(function (w) { return w.level !== 'ok'; }).length;
+    var lineCount = formatted ? formatted.split('\n').length : 0;
+    var score = Math.min(100, Math.round(
+      (ifCount * 12) + (maxDepth * 7) + (logicCount * 4) + (compareCount * 3) +
+      (mathCount * 2) + (fields.length * 2) + (warningCount * 12) + Math.min(src.length / 55, 18)
+    ));
+    var level = score < 25 ? 'Low' : score < 50 ? 'Medium' : score < 75 ? 'High' : 'Very High';
+    return {
+      score: score, level: level, ifCount: ifCount, logicCount: logicCount, compareCount: compareCount,
+      mathCount: mathCount, stringCount: stringCount, numberCount: numberCount, fieldCount: fields.length,
+      maxDepth: maxDepth, warningCount: warningCount, tokenCount: tokens.length, lineCount: lineCount, fields: fields
+    };
+  }
+
+  function summarizeText(s, max) {
+    s = (s || '').replace(/\s+/g, ' ').trim();
+    if (!s) return '(nothing)';
+    return s.length > max ? s.slice(0, max - 1) + '…' : s;
+  }
+
+  function findFirstIf(items) {
+    for (var i = 0; i < items.length; i++)
+      if (items[i].type === 'group' && items[i].funcName && items[i].funcName.toLowerCase() === 'if') return items[i];
+    for (var j = 0; j < items.length; j++)
+      if (items[j].type === 'group') { var r = findFirstIf(items[j].items); if (r) return r; }
+    return null;
+  }
+
+  function logicMap(src) {
+    var tree = parse(tokenize(src));
+    var ifg = findFirstIf(tree);
+    if (!ifg) {
+      var stmts = splitTopLevel(tree).filter(function (s) { return s.items.length; }).length;
+      return 'No IF decision tree detected.\nTop-level expression/statement count: ' + stmts + '.\nUse the formatted output and field list for structural review.';
+    }
+    var lines = [], idx = 0;
+    function pad(level) { return new Array(level + 1).join('    '); }
+    function walk(group, level) {
+      idx++;
+      var args = splitTopLevel(group.items).map(function (s) { return s.items; });
+      var cond = args[0] || [], thenE = args[1] || [], elseE = args[2] || [];
+      lines.push(pad(level) + 'IF #' + idx);
+      lines.push(pad(level) + '├─ CONDITION: ' + summarizeText(describeCondition(cond), 220));
+      lines.push(pad(level) + '├─ RETURN IF TRUE: ' + summarizeText(humanInline(thenE), 220));
+      var e = unwrap(elseE);
+      if (e.length === 1 && e[0].type === 'group' && e[0].funcName && e[0].funcName.toLowerCase() === 'if') {
+        lines.push(pad(level) + '└─ RETURN IF FALSE:');
+        walk(e[0], level + 1);
+      } else {
+        lines.push(pad(level) + '└─ RETURN IF FALSE: ' + summarizeText(humanInline(elseE), 220));
+      }
+    }
+    walk(ifg, 0);
+    return lines.join('\n');
+  }
+
+
+  function rawInline(items) { return inlineItems(items || [], { upper: false, human: false }); }
+
+  function itemsRange(items) {
+    items = items || [];
+    var start = null, end = null;
+    for (var i = 0; i < items.length; i++) {
+      var it = items[i];
+      if (it.start == null || it.end == null) continue;
+      if (start == null || it.start < start) start = it.start;
+      if (end == null || it.end > end) end = it.end;
+    }
+    if (start == null || end == null) return null;
+    return { start: start, end: end };
+  }
+
+  function exactFromRange(src, range, fallback) {
+    if (!range || range.start == null || range.end == null || range.end < range.start) return fallback || '';
+    return src.slice(range.start, range.end);
+  }
+
+  function exactItems(src, items) {
+    return exactFromRange(src, itemsRange(items), rawInline(items));
+  }
+
+  function singleIfGroup(items) {
+    var e = unwrap(items || []);
+    if (e.length === 1 && e[0].type === 'group' && e[0].funcName && e[0].funcName.toLowerCase() === 'if') return e[0];
+    return null;
+  }
+
+  function decisionTree(src) {
+    var tree = parse(tokenize(src));
+    var ifg = findFirstIf(tree);
+    if (!ifg) {
+      var stmts = splitTopLevel(tree).filter(function (s) { return s.items.length; }).length;
+      return { hasTree: false, message: 'No IF decision tree detected. Top-level expression/statement count: ' + stmts + '.' };
+    }
+
+    var idx = 0;
+    function branch(parentId, kind, items, label) {
+      var nested = singleIfGroup(items);
+      if (nested) return { kind: 'if', label: label, child: buildIf(nested) };
+      var range = itemsRange(items);
+      var formula = exactFromRange(src, range, rawInline(items));
+      return {
+        kind: 'return', label: label, id: parentId + '-' + kind,
+        title: label + ' result', summary: summarizeText(humanInline(items), 120),
+        formula: formula, fields: extractFields(formula), range: range,
+        editKind: label + ' return result'
+      };
+    }
+
+    function buildIf(group) {
+      idx++;
+      var id = 'if-' + idx;
+      var args = splitTopLevel(group.items).map(function (s) { return s.items; });
+      var cond = args[0] || [], thenE = args[1] || [], elseE = args[2] || [];
+      var condRange = itemsRange(cond);
+      var conditionFormula = exactFromRange(src, condRange, rawInline(cond));
+      return {
+        kind: 'if', id: id, title: 'IF #' + idx,
+        condition: summarizeText(describeCondition(cond), 180),
+        conditionFormula: conditionFormula,
+        fields: extractFields(conditionFormula), range: condRange,
+        editKind: 'condition',
+        trueBranch: branch(id, 'true', thenE, 'TRUE'),
+        falseBranch: branch(id, 'false', elseE, 'FALSE')
+      };
+    }
+
+    return { hasTree: true, root: buildIf(ifg), count: idx };
+  }
+
+  // ---------------- status helpers (for cards) ----------------
+  function bracketBalance(src) {
+    var tokens = tokenize(src), stack = [], ok = true;
+    for (var i = 0; i < tokens.length; i++) {
+      var t = tokens[i];
+      if (t.type === 'lparen') stack.push(t.bracket);
+      else if (t.type === 'rparen') { if (!stack.length || stack.pop() !== t.bracket) ok = false; }
+    }
+    return ok && stack.length === 0;
+  }
+  function quoteBalance(src) {
+    var tokens = tokenize(src);
+    for (var i = 0; i < tokens.length; i++) if (tokens[i].type === 'string' && !tokens[i].closed) return false;
+    return true;
+  }
+
+  var api = {
+    formatCode: formatCode, validate: validate,
+    logicPreserved: logicPreserved, bracketBalance: bracketBalance,
+    quoteBalance: quoteBalance, tokenize: tokenize, extractFields: extractFields, complexityMetrics: complexityMetrics, logicMap: logicMap, decisionTree: decisionTree
+  };
+  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+  root.Formatter = api;
+})(typeof window !== 'undefined' ? window : globalThis);
+</script>
+<!-- ================= APP / UI LOGIC ================= -->
+<script>
+(function () {
+  'use strict';
+
+  // ---- the Oracle CPQ sample used for "Load sample" ----
+  var SAMPLE =
+    'if(((customerSegment_c = "Enterprise") OR ' +
+    '(customerSegment_c = "Strategic")),' +
+    '(((baseCost_c*markupPercentage_c)/100)+baseCost_c),' +
+    'if((customerSegment_c = "Government"),' +
+    '(((contractCost_c*markupPercentage_c)/100)+contractCost_c),' +
+    'if((customerSegment_c = "SMB"),' +
+    '(((standardCost_c*markupPercentage_c)/100)+standardCost_c),0)))';
+
+  // ---- element refs ----
+  var $ = function (id) { return document.getElementById(id); };
+  var input = $('input'), output = $('output');
+  var optUpper = $('optUpper'), optHighlight = $('optHighlight'), highlightLegend = $('highlightLegend'), preserveBadge = $('preserveBadge');
+  var cChars = $('cChars'), cParen = $('cParen'), cQuote = $('cQuote'), cFmt = $('cFmt');
+  var cComplexity = $('cComplexity'), cIfs = $('cIfs'), cFieldsUsed = $('cFieldsUsed'), cDepth = $('cDepth');
+  var reviewStatus = $('reviewStatus'), visualTree = $('visualTree'), nodeDetails = $('nodeDetails'), fieldList = $('fieldList'), treeToast = $('treeToast'), pendingChangesPanel = $('pendingChangesPanel');
+  var treeEditorModal = $('treeEditorModal'), treeEditorModalBody = $('treeEditorModalBody'), treeEditorModalTitle = $('treeEditorModalTitle'), treeEditorModalSubtitle = $('treeEditorModalSubtitle'), btnCloseTreeEditorModal = $('btnCloseTreeEditorModal');
+  var btnTreeExpandAll = $('btnTreeExpandAll'), btnTreeCollapseAll = $('btnTreeCollapseAll'), btnTreeReset = $('btnTreeReset'), btnExportHtml = $('btnExportHtml'), btnTreeUndoEdit = $('btnTreeUndoEdit'), btnApplyPendingAll = $('btnApplyPendingAll'), btnDiscardPending = $('btnDiscardPending');
+  var warns = $('warns');
+
+  // raw (unescaped) formatted text, kept separately so Copy / Download stay clean
+  var lastOutput = '';
+  var visualTreeData = null;
+  var visualTreeRegistry = {};
+  var visualTreeExpanded = {};
+  var visualTreeSelected = null;
+  var lastTreeEditUndo = null;
+  var lastModifiedNodeIds = {};
+  var pendingTreeRestore = null;
+  var pendingNodeEdits = {};
+  var pendingEditOrder = [];
+  var treeToastTimer = null;
+  var treeClickTimer = null;
+
+  // ---- small helpers ----
+  function escapeHtml(s) {
+    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+
+  // ---- smart logic highlighting (visual-only; does not affect copy/download) ----
+  function highlightCode(text) {
+    var out = '', i = 0, n = text.length, depth = 0, pairSeq = 0;
+    var stack = [];
+    var TWO = { '<=':1, '>=':1, '==':1, '!=':1, '<>':1, '&&':1, '||':1, '**':1, '+=':1, '-=':1, '*=':1, '/=':1, '=>':1, ':=':1 };
+    var decision = { 'if':1, 'iif':1, 'case':1, 'when':1, 'then':1, 'else':1, 'end':1, 'nvl':1, 'nvl2':1, 'decode':1, 'switch':1 };
+    var logic = { 'and':1, 'or':1, 'not':1, 'in':1 };
+    var codeKw = { 'def':1, 'return':1, 'while':1, 'for':1, 'break':1, 'continue':1, 'true':1, 'false':1, 'null':1, 'new':1, 'var':1, 'let':1, 'const':1, 'class':1, 'function':1 };
+    var compareOps = { '=':1, '<':1, '>':1, '<=':1, '>=':1, '==':1, '!=':1, '<>':1, '=>':1, ':=':1 };
+    var mathOps = { '+':1, '-':1, '*':1, '/':1, '%':1, '**':1, '+=':1, '-=':1, '*=':1, '/=':1 };
+    var isIdStart = function (c) { return /[A-Za-z_$]/.test(c); };
+    var isIdPart = function (c) { return /[A-Za-z0-9_$.]/.test(c); };
+    var isOpen = function (c) { return c === '(' || c === '{' || c === '['; };
+    var isClose = function (c) { return c === ')' || c === '}' || c === ']'; };
+    var levelClass = function (level) { return ' br-level-' + (((level - 1) % 6) + 1); };
+    var span = function (cls, value, attrs) { return '<span class="' + cls + '"' + (attrs || '') + '>' + escapeHtml(value) + '</span>'; };
+
+    while (i < n) {
+      var c = text[i];
+
+      if (/\s/.test(c)) { out += c; i++; continue; }
+
+      if (c === '"' || c === "'") {
+        var quote = c, j = i + 1, val = c, closed = false;
+        while (j < n) {
+          var cj = text[j];
+          if (cj === '\\' && j + 1 < n) { val += cj + text[j + 1]; j += 2; continue; }
+          val += cj;
+          if (cj === quote) { closed = true; j++; break; }
+          j++;
+        }
+        out += span('tok-string' + (closed ? '' : ' tok-risk'), val);
+        i = j; continue;
+      }
+
+      if (/[0-9]/.test(c)) {
+        var k = i + 1;
+        while (k < n && /[0-9._]/.test(text[k])) k++;
+        out += span('tok-number', text.slice(i, k));
+        i = k; continue;
+      }
+
+      if (isIdStart(c)) {
+        var m = i + 1;
+        while (m < n && isIdPart(text[m])) m++;
+        var word = text.slice(i, m), low = word.toLowerCase(), cls = 'tok-field';
+        if (decision[low]) cls = 'tok-decision';
+        else if (logic[low]) cls = 'tok-logic';
+        else if (codeKw[low]) cls = 'tok-codekw';
+        out += span(cls, word);
+        i = m; continue;
+      }
+
+      if (isOpen(c)) {
+        pairSeq++; depth++;
+        var openInfo = { pair: pairSeq, level: depth, bracket: c };
+        stack.push(openInfo);
+        out += span('tok-bracket' + levelClass(openInfo.level), c, ' data-pair="' + openInfo.pair + '"');
+        i++; continue;
+      }
+
+      if (isClose(c)) {
+        var closeInfo = stack.length ? stack.pop() : { pair: 'stray-' + i, level: Math.max(depth, 1) };
+        out += span('tok-bracket' + levelClass(closeInfo.level), c, ' data-pair="' + closeInfo.pair + '"');
+        depth = Math.max(0, depth - 1);
+        i++; continue;
+      }
+
+      var two = text.substr(i, 2);
+      if (TWO[two]) {
+        if (two === '&&' || two === '||') out += span('tok-logic', two);
+        else if (compareOps[two]) out += span('tok-compare', two);
+        else if (mathOps[two]) out += span('tok-math', two);
+        else out += span('tok-punc', two);
+        i += 2; continue;
+      }
+
+      if (compareOps[c]) out += span('tok-compare', c);
+      else if (mathOps[c]) out += span('tok-math', c);
+      else if (c === ',' || c === ';' || c === '.') out += span('tok-punc', c);
+      else out += escapeHtml(c);
+      i++;
+    }
+    return out;
+  }
+
+  function setBracketPairActive(pairId, active) {
+    if (!pairId) return;
+    var nodes = output.querySelectorAll('.tok-bracket[data-pair="' + pairId + '"]');
+    for (var i = 0; i < nodes.length; i++) nodes[i].classList.toggle('pair-active', active);
+  }
+
+  function bindBracketPairEvents() {
+    var nodes = output.querySelectorAll('.tok-bracket[data-pair]');
+    for (var i = 0; i < nodes.length; i++) {
+      nodes[i].addEventListener('mouseenter', function () { setBracketPairActive(this.getAttribute('data-pair'), true); });
+      nodes[i].addEventListener('mouseleave', function () { setBracketPairActive(this.getAttribute('data-pair'), false); });
+      nodes[i].addEventListener('click', function () {
+        var pair = this.getAttribute('data-pair');
+        setBracketPairActive(pair, true);
+        window.setTimeout(function () { setBracketPairActive(pair, false); }, 900);
+      });
+    }
+  }
+
+  function setDot(el, state, label) {            // state: 'ok' | 'bad' | 'warn' | ''
+    el.className = 'v' + (state ? ' ' + state : '');
+    el.innerHTML = '<span class="dot' + (state ? ' ' + state : '') + '"></span>' + label;
+  }
+
+  function updateHighlightLegend() {
+    if (highlightLegend) highlightLegend.style.display = optHighlight && optHighlight.checked ? 'flex' : 'none';
+  }
+
+  // ---- live status cards (run on every input change) ----
+  function refreshStatus() {
+    var src = input.value;
+    cChars.textContent = src.length.toLocaleString();
+
+    if (!src.trim()) {
+      setDot(cParen, '', '—');
+      setDot(cQuote, '', '—');
+      return;
+    }
+    var pOk = Formatter.bracketBalance(src);
+    var qOk = Formatter.quoteBalance(src);
+    setDot(cParen, pOk ? 'ok' : 'bad', pOk ? 'Balanced' : 'Unbalanced');
+    setDot(cQuote, qOk ? 'ok' : 'bad', qOk ? 'Balanced' : 'Unbalanced');
+  }
+
+  // ---- render formatted code into the line-numbered view ----
+  function renderOutput(text) {
+    lastOutput = text;
+    var lines = text.split('\n');
+    var nums = [], i;
+    updateHighlightLegend();
+    var codeHtml = optHighlight && optHighlight.checked ? highlightCode(text) : escapeHtml(text);
+    for (i = 0; i < lines.length; i++) nums.push(i + 1);
+    output.innerHTML =
+      '<div class="ln">' + nums.join('\n') + '</div>' +
+      '<div class="code">' + codeHtml + '</div>';
+    if (optHighlight && optHighlight.checked) bindBracketPairEvents();
+  }
+  function renderOutputEmpty(msg) {
+    lastOutput = '';
+    updateHighlightLegend();
+    output.innerHTML =
+      '<div class="ln">1</div>' +
+      '<div class="code"><span class="empty">' + escapeHtml(msg) + '</span></div>';
+  }
+
+  // ---- render validation warnings ----
+  function renderWarnings(list) {
+    warns.innerHTML = '';
+    if (!list || !list.length) list = [{ level: 'ok', msg: 'No issues detected.' }];
+    list.forEach(function (w) {
+      var li = document.createElement('li');
+      var ok = w.level === 'ok';
+      li.className = ok ? 'ok' : 'warn';
+      li.innerHTML = '<span class="ic">' + (ok ? '\u2713' : '\u26A0') +
+        '</span><span>' + escapeHtml(w.msg) + '</span>';
+      warns.appendChild(li);
+    });
+  }
+
+
+
+  // ---- phase 2 / 3 review assistant rendering ----
+  function setText(el, text) { if (el) el.textContent = text; }
+
+  function resetVisualTree(message) {
+    visualTreeData = null;
+    visualTreeRegistry = {};
+    visualTreeExpanded = {};
+    visualTreeSelected = null;
+    lastModifiedNodeIds = {};
+    pendingTreeRestore = null;
+    if (treeToast) treeToast.className = 'tree-toast';
+    closeTreeEditorModal();
+    clearPendingEdits();
+    if (visualTree) visualTree.innerHTML = '<div class="tree-empty">' + escapeHtml(message || 'Format a nested IF formula to generate a clickable decision tree.') + '</div>';
+    if (nodeDetails) nodeDetails.innerHTML = '<div class="detail-empty">Click a node to select it. Double-click any IF or return card to open the editor.</div>';
+    updateUndoEditButton();
+    updateExportHtmlButton();
+  }
+
+  function resetReviewAssistant(message) {
+    setText(reviewStatus, message || 'Waiting for input');
+    if (cComplexity) { cComplexity.className = 'v'; cComplexity.textContent = '—'; }
+    setText(cIfs, '0');
+    setText(cFieldsUsed, '0');
+    setText(cDepth, '0');
+    resetVisualTree('Format a nested IF formula to generate a clickable decision tree.');
+    if (fieldList) fieldList.innerHTML = '<span class="field-pill dim">No fields detected yet.</span>';
+    updateUndoEditButton();
+  }
+
+  function renderFieldList(fields) {
+    if (!fieldList) return;
+    fieldList.innerHTML = '';
+    if (!fields || !fields.length) {
+      fieldList.innerHTML = '<span class="field-pill dim">No Oracle-style field dependencies detected.</span>';
+      return;
+    }
+    fields.forEach(function (f) {
+      var pill = document.createElement('span');
+      pill.className = 'field-pill';
+      pill.textContent = f;
+      fieldList.appendChild(pill);
+    });
+  }
+
+  function fieldsHtml(fields) {
+    if (!fields || !fields.length) return '<span class="field-pill dim">No fields detected.</span>';
+    return fields.map(function (f) { return '<span class="field-pill">' + escapeHtml(f) + '</span>'; }).join('');
+  }
+
+  function shortDisplay(s, max) {
+    s = String(s || '').replace(/\s+/g, ' ').trim();
+    if (!s) return '(nothing)';
+    return s.length > max ? s.slice(0, max - 1) + '…' : s;
+  }
+
+  function pendingCount() { return pendingEditOrder.length; }
+  function getPendingEdit(id) { return id && pendingNodeEdits[id] ? pendingNodeEdits[id] : null; }
+  function isModifiedNode(id) { return !!(id && lastModifiedNodeIds && lastModifiedNodeIds[id]); }
+  function isPendingNode(id) { return !!getPendingEdit(id); }
+
+  function rangeOverlaps(a, b) {
+    if (!a || !b) return false;
+    return a.start < b.end && b.start < a.end;
+  }
+
+  function updatePendingButtons() {
+    var count = pendingCount();
+    if (btnApplyPendingAll) {
+      btnApplyPendingAll.disabled = count === 0;
+      btnApplyPendingAll.textContent = 'Apply all pending (' + count + ')';
+    }
+    if (btnDiscardPending) btnDiscardPending.disabled = count === 0;
+  }
+
+  function updateExportHtmlButton() {
+    if (!btnExportHtml) return;
+    var ready = !!(visualTreeData && visualTreeData.hasTree && visualTreeData.root);
+    btnExportHtml.disabled = !ready;
+    btnExportHtml.title = ready ? 'Export the current formula as a standalone HTML view.' : 'Format a nested IF formula first.';
+  }
+
+  function renderPendingChangesPanel() {
+    updatePendingButtons();
+    if (!pendingChangesPanel) return;
+    var count = pendingCount();
+    if (!count) {
+      pendingChangesPanel.className = 'pending-panel';
+      pendingChangesPanel.innerHTML = '';
+      return;
+    }
+    var items = pendingEditOrder.map(function (id, idx) {
+      var e = pendingNodeEdits[id];
+      if (!e) return '';
+      var beforeShort = shortDisplay(e.originalFormula || '', 72);
+      var afterShort = shortDisplay(e.replacement || '', 72);
+      return '<li class="pending-item" data-pending-id="' + escapeHtml(id) + '">' +
+        '<div class="pending-item-main"><strong>' + (idx + 1) + '. ' + escapeHtml(e.title || id) + '</strong> <span class="muted">' + escapeHtml(e.editKind || 'formula segment') + '</span><br>' +
+        '<span class="muted">Before:</span> <code>' + escapeHtml(beforeShort) + '</code> <span class="muted">After:</span> <code>' + escapeHtml(afterShort) + '</code></div>' +
+        '<div class="pending-item-actions"><button type="button" data-action="select-pending" data-id="' + escapeHtml(id) + '">Select</button><button type="button" data-action="remove-pending" data-id="' + escapeHtml(id) + '">Remove</button></div>' +
+      '</li>';
+    }).join('');
+    pendingChangesPanel.className = 'pending-panel show';
+    pendingChangesPanel.innerHTML = '<div class="pending-panel-head"><div class="pending-panel-title">Pending changes queue — ' + count + '</div><div class="pending-summary">Stage multiple edits, then apply them once.</div></div><ul class="pending-list">' + items + '</ul>';
+  }
+
+  function clearPendingEdits() {
+    pendingNodeEdits = {};
+    pendingEditOrder = [];
+    renderPendingChangesPanel();
+  }
+
+  function registerVisualNode(id, detail) {
+    detail = detail || {};
+    detail.id = id;
+    visualTreeRegistry[id] = detail;
+  }
+
+  function copyTreeExpandedState() {
+    var copy = {};
+    for (var k in visualTreeExpanded) {
+      if (Object.prototype.hasOwnProperty.call(visualTreeExpanded, k)) copy[k] = visualTreeExpanded[k] === true;
+    }
+    return copy;
+  }
+
+  function prepareTreeRestore(selectedId) {
+    return { expanded: copyTreeExpandedState(), selected: selectedId || visualTreeSelected, scrollY: window.scrollY || 0 };
+  }
+
+  function showTreeToast(message, state) {
+    if (!treeToast) return;
+    window.clearTimeout(treeToastTimer);
+    treeToast.textContent = message;
+    treeToast.className = 'tree-toast show ' + (state || 'ok');
+    treeToastTimer = window.setTimeout(function () { if (treeToast) treeToast.className = 'tree-toast'; }, 5200);
+  }
+
+  function restoreTreeExpansion(data, restore) {
+    visualTreeExpanded = {};
+    if (!data || !data.root) return;
+    walkIfNodes(data.root, function (node) { visualTreeExpanded[node.id] = false; });
+    visualTreeExpanded[data.root.id] = true;
+    if (restore && restore.expanded) {
+      walkIfNodes(data.root, function (node) {
+        if (Object.prototype.hasOwnProperty.call(restore.expanded, node.id)) visualTreeExpanded[node.id] = restore.expanded[node.id] === true;
+      });
+    }
+    visualTreeSelected = restore && restore.selected ? restore.selected : data.root.id;
+  }
+
+  function updateUndoEditButton() {
+    if (!btnTreeUndoEdit) return;
+    btnTreeUndoEdit.disabled = !lastTreeEditUndo;
+    btnTreeUndoEdit.title = lastTreeEditUndo ? 'Restore the input before the last tree edit.' : 'No tree edit to undo yet.';
+    updatePendingButtons();
+  }
+
+  function validRange(range, src) {
+    return range && typeof range.start === 'number' && typeof range.end === 'number' &&
+      range.start >= 0 && range.end >= range.start && range.end <= src.length;
+  }
+
+  function selectedVisualDetail() {
+    return visualTreeSelected ? visualTreeRegistry[visualTreeSelected] : null;
+  }
+
+  function nodeEditStatus(msg, state) {
+    var el = $('nodeEditStatus');
+    if (!el) return;
+    el.className = 'modal-note' + (state ? ' ' + state : '');
+    el.textContent = msg;
+  }
+
+  function updateNodeEditPreview() {
+    var d = selectedVisualDetail();
+    var ta = $('nodeEditText'), before = $('nodeEditBefore'), after = $('nodeEditAfter');
+    if (!d || !ta) return;
+    if (before) before.textContent = d.formula || '';
+    if (after) after.textContent = ta.value || '';
+    var pendingEdit = getPendingEdit(d.id);
+    var changed = ta.value !== (d.formula || '');
+    if (pendingEdit && ta.value === pendingEdit.replacement) nodeEditStatus('This node already has a staged pending change. You can update it or apply all pending changes.', 'ok');
+    else nodeEditStatus(changed ? 'Preview ready. Add this edit to the pending queue, then apply all changes once.' : 'No change yet. Edit the selected segment, then add it to pending changes.', changed ? 'warn' : '');
+  }
+
+  function jumpToSourceRange() {
+    var d = selectedVisualDetail();
+    var src = input.value;
+    if (!d || !validRange(d.range, src)) { nodeEditStatus('Cannot jump: this node has no valid source range. Reformat and try again.', 'bad'); return; }
+    input.focus();
+    input.setSelectionRange(d.range.start, d.range.end);
+    var before = src.slice(0, d.range.start);
+    input.scrollTop = Math.max(0, before.split('\n').length * 19 - 80);
+    nodeEditStatus('Selected the exact source segment in the input box above.', 'ok');
+  }
+
+  function stageNodeEdit() {
+    var d = selectedVisualDetail();
+    var ta = $('nodeEditText');
+    var src = input.value;
+    if (!d || !ta || !validRange(d.range, src)) { nodeEditStatus('Cannot stage: stale or missing source range. Click Format Code and try again.', 'bad'); return; }
+    var currentSegment = src.slice(d.range.start, d.range.end);
+    if (currentSegment !== d.formula) {
+      nodeEditStatus('Cannot stage safely because the original input changed after this tree was generated. Click Format Code, select the node again, then edit.', 'bad');
+      return;
+    }
+    var replacement = ta.value;
+    if (!replacement.trim()) { nodeEditStatus('Replacement is empty. Add a valid condition/result before staging.', 'bad'); return; }
+    if (replacement === d.formula) { nodeEditStatus('No change to stage for this node.', ''); return; }
+    if (!Formatter.bracketBalance(replacement)) { nodeEditStatus('Pending change blocked: this segment has unbalanced brackets.', 'bad'); return; }
+    if (!Formatter.quoteBalance(replacement)) { nodeEditStatus('Pending change blocked: this segment has unbalanced quotes.', 'bad'); return; }
+
+    for (var i = 0; i < pendingEditOrder.length; i++) {
+      var otherId = pendingEditOrder[i];
+      var other = pendingNodeEdits[otherId];
+      if (!other || otherId === d.id) continue;
+      if (rangeOverlaps(d.range, other.range)) {
+        nodeEditStatus('Pending change blocked: this source segment overlaps with another pending edit. Remove the conflicting pending edit first.', 'bad');
+        return;
+      }
+    }
+
+    pendingNodeEdits[d.id] = {
+      id: d.id, title: d.title, type: d.type, editKind: d.editKind,
+      range: { start: d.range.start, end: d.range.end },
+      originalFormula: d.formula || '', replacement: replacement,
+      fields: d.fields || []
+    };
+    if (pendingEditOrder.indexOf(d.id) < 0) pendingEditOrder.push(d.id);
+    renderPendingChangesPanel();
+    renderVisualTreeFromData();
+    syncTreeSelection(d.id);
+    nodeEditStatus('Pending change staged. Add more edits, then click Apply all pending once.', 'ok');
+    closeTreeEditorModal();
+    showTreeToast('Pending change staged. You can edit more nodes before applying all changes.', 'ok');
+  }
+
+  function applyPendingEdits() {
+    var count = pendingCount();
+    if (!count) { showTreeToast('No pending changes to apply.', 'warn'); return; }
+    var src = input.value;
+    var edits = pendingEditOrder.map(function (id) { return pendingNodeEdits[id]; }).filter(Boolean);
+    for (var i = 0; i < edits.length; i++) {
+      var e = edits[i];
+      if (!validRange(e.range, src)) { showTreeToast('Apply blocked: one pending change has a stale source range. Reformat and stage it again.', 'warn'); return; }
+      var currentSegment = src.slice(e.range.start, e.range.end);
+      if (currentSegment !== e.originalFormula) { showTreeToast('Apply blocked: original input changed after staging. Discard pending changes, reformat, and stage again.', 'warn'); return; }
+      if (!e.replacement || !e.replacement.trim()) { showTreeToast('Apply blocked: one pending replacement is empty.', 'warn'); return; }
+    }
+    edits.sort(function (a, b) { return b.range.start - a.range.start; });
+    var nextSrc = src;
+    for (var j = 0; j < edits.length; j++) {
+      var edit = edits[j];
+      nextSrc = nextSrc.slice(0, edit.range.start) + edit.replacement + nextSrc.slice(edit.range.end);
+    }
+    if (!Formatter.bracketBalance(nextSrc)) { showTreeToast('Apply blocked: the updated formula would have unbalanced brackets.', 'warn'); return; }
+    if (!Formatter.quoteBalance(nextSrc)) { showTreeToast('Apply blocked: the updated formula would have unbalanced quotes.', 'warn'); return; }
+
+    var selectedAfter = visualTreeSelected || (edits[0] && edits[0].id);
+    pendingTreeRestore = prepareTreeRestore(selectedAfter);
+    lastModifiedNodeIds = {};
+    for (var k = 0; k < edits.length; k++) lastModifiedNodeIds[edits[k].id] = true;
+    lastTreeEditUndo = src;
+    clearPendingEdits();
+    input.value = nextSrc;
+    refreshStatus();
+    doFormat();
+    switchWorkspaceTab('tree');
+    updateUndoEditButton();
+    setText(reviewStatus, count + ' pending change(s) applied — current view preserved');
+    closeTreeEditorModal();
+    showTreeToast(count + ' pending change(s) applied successfully. Modified nodes are highlighted.', 'ok');
+  }
+
+  function discardPendingEdits(showMessage) {
+    var count = pendingCount();
+    clearPendingEdits();
+    renderVisualTreeFromData();
+    if (showMessage && count) showTreeToast(count + ' pending change(s) discarded.', 'warn');
+  }
+
+  function resetNodeEditor() {
+    var d = selectedVisualDetail();
+    var ta = $('nodeEditText');
+    if (!d || !ta) return;
+    ta.value = d.formula || '';
+    updateNodeEditPreview();
+  }
+
+  function undoLastTreeEdit() {
+    if (!lastTreeEditUndo) return;
+    var restore = prepareTreeRestore(visualTreeSelected);
+    input.value = lastTreeEditUndo;
+    lastTreeEditUndo = null;
+    lastModifiedNodeIds = {};
+    clearPendingEdits();
+    pendingTreeRestore = restore;
+    refreshStatus();
+    doFormat();
+    switchWorkspaceTab('tree');
+    updateUndoEditButton();
+    setText(reviewStatus, 'Last tree edit undone — current view preserved');
+    showTreeToast('Last tree edit undone. Modified marker cleared.', 'warn');
+  }
+
+  function walkIfNodes(node, cb) {
+    if (!node || node.kind !== 'if') return;
+    cb(node);
+    if (node.trueBranch && node.trueBranch.kind === 'if') walkIfNodes(node.trueBranch.child, cb);
+    if (node.falseBranch && node.falseBranch.kind === 'if') walkIfNodes(node.falseBranch.child, cb);
+  }
+
+  function initializeTreeExpansion(data) {
+    visualTreeExpanded = {};
+    if (!data || !data.root) return;
+    walkIfNodes(data.root, function (node) { visualTreeExpanded[node.id] = false; });
+    visualTreeExpanded[data.root.id] = true;
+    visualTreeSelected = data.root.id;
+  }
+
+  function renderResultNode(branch, branchClass) {
+    registerVisualNode(branch.id, {
+      type: branch.label + ' Return Result', title: branch.title,
+      summary: branch.summary, formula: branch.formula, fields: branch.fields || [], range: branch.range, editKind: branch.editKind
+    });
+    var selected = visualTreeSelected === branch.id ? ' selected' : '';
+    var modified = isModifiedNode(branch.id) ? ' modified' : '';
+    var pending = isPendingNode(branch.id) ? ' pending' : '';
+    var modifiedBadge = modified ? '<span class="modified-badge">Modified</span>' : '';
+    var pendingBadge = pending ? '<span class="pending-badge">Pending</span>' : '';
+    return '<button type="button" class="result-node ' + branchClass + selected + modified + pending + '" data-node-id="' + escapeHtml(branch.id) + '">' +
+      '<div class="result-title">' + escapeHtml(branch.title) + modifiedBadge + pendingBadge + '</div>' +
+      '<div>' + escapeHtml(branch.summary) + '</div>' +
+      '<div class="if-meta"><span class="mini-chip">Double-click to edit</span>' + (pending ? '<span class="mini-chip">Pending edit</span>' : '') + (modified ? '<span class="mini-chip">Last changed</span>' : '') + '</div>' +
+      '</button>';
+  }
+
+  function renderBranch(branch, label, branchClass) {
+    var inner = '';
+    if (!branch) inner = '<div class="tree-empty">No branch detected.</div>';
+    else if (branch.kind === 'if') inner = renderIfNode(branch.child);
+    else inner = renderResultNode(branch, branchClass);
+    return '<div class="tree-branch"><div class="branch-label ' + branchClass + '">' + label + '</div><div class="branch-body">' + inner + '</div></div>';
+  }
+
+  function renderIfNode(node) {
+    if (!node) return '';
+    registerVisualNode(node.id, {
+      type: 'Decision Node', title: node.title,
+      summary: node.condition, formula: node.conditionFormula, fields: node.fields || [], range: node.range, editKind: node.editKind
+    });
+    var open = visualTreeExpanded[node.id] === true;
+    var selected = visualTreeSelected === node.id ? ' selected' : '';
+    var modified = isModifiedNode(node.id) ? ' modified' : '';
+    var pending = isPendingNode(node.id) ? ' pending' : '';
+    var modifiedBadge = modified ? '<span class="modified-badge">Modified</span>' : '';
+    var pendingBadge = pending ? '<span class="pending-badge">Pending</span>' : '';
+    var fieldCount = node.fields && node.fields.length ? node.fields.length : 0;
+    var childClass = open ? 'tree-open' : 'tree-collapsed';
+    var childStyle = open ? 'max-height:none;' : 'max-height:0px;';
+    var html = '<div class="tree-if-block">' +
+      '<button type="button" class="if-node' + selected + modified + pending + '" data-node-id="' + escapeHtml(node.id) + '" aria-expanded="' + (open ? 'true' : 'false') + '">' +
+        '<div class="if-head"><span class="if-chevron">▸</span><span class="if-title">' + escapeHtml(node.title) + '</span>' + modifiedBadge + pendingBadge + '</div>' +
+        '<div class="if-cond">' + escapeHtml(node.condition) + '</div>' +
+        '<div class="if-meta"><span class="mini-chip">Fields: ' + fieldCount + '</span><span class="mini-chip tree-toggle-chip">Click to ' + (open ? 'collapse' : 'expand') + '</span><span class="mini-chip">Double-click to edit</span>' + (pending ? '<span class="mini-chip">Pending edit</span>' : '') + (modified ? '<span class="mini-chip">Last changed</span>' : '') + '</div>' +
+      '</button>' +
+      '<div class="tree-children ' + childClass + '" data-children-for="' + escapeHtml(node.id) + '" aria-hidden="' + (!open ? 'true' : 'false') + '" style="' + childStyle + '">' +
+        renderBranch(node.trueBranch, 'TRUE', 'true') +
+        renderBranch(node.falseBranch, 'FALSE', 'false') +
+      '</div>' +
+    '</div>';
+    return html;
+  }
+
+
+  function closeTreeEditorModal() {
+    if (!treeEditorModal) return;
+    treeEditorModal.classList.remove('open');
+    treeEditorModal.setAttribute('aria-hidden', 'true');
+    document.body.classList.remove('modal-lock');
+  }
+
+  function renderEditorFormHtml(d, editorValue) {
+    var canEdit = d && d.range && typeof d.range.start === 'number' && typeof d.range.end === 'number';
+    if (!canEdit) {
+      return '<div class="modal-note bad">This node cannot be edited safely because no exact source range was detected. Reformat the formula and try again.</div>';
+    }
+    var pendingEdit = getPendingEdit(d.id);
+    var pendingBadge = pendingEdit ? '<span class="pending-badge">Pending</span>' : '';
+    var modBadge = isModifiedNode(d.id) ? '<span class="modified-badge">Last modified</span>' : '';
+    var fields = d.fields && d.fields.length ? fieldsHtml(d.fields) : '<span class="field-pill dim">No fields</span>';
+    return '<div class="modal-meta">' +
+        '<span class="source-range">source: ' + d.range.start + '–' + d.range.end + '</span>' + pendingBadge + modBadge +
+        '<span class="selected-node-fields-label">Fields</span><span class="selected-node-fields">' + fields + '</span>' +
+      '</div>' +
+      '<div class="detail-label">Edit selected ' + escapeHtml(d.editKind || 'formula segment') + '</div>' +
+      '<div class="modal-edit-grid">' +
+        '<div><textarea id="nodeEditText" class="edit-textarea" spellcheck="false">' + escapeHtml(editorValue) + '</textarea></div>' +
+        '<div class="edit-preview">' +
+          '<div class="detail-label">Before</div><pre id="nodeEditBefore">' + escapeHtml(d.formula || '') + '</pre>' +
+          '<div class="detail-label" style="margin-top:8px">After preview</div><pre id="nodeEditAfter">' + escapeHtml(editorValue) + '</pre>' +
+        '</div>' +
+      '</div>' +
+      '<div class="modal-actions">' +
+        '<button id="btnJumpToSource" type="button">Jump to source</button>' +
+        '<button id="btnStageNodeEdit" type="button" class="primary">Add to pending changes</button>' +
+        '<button id="btnApplyAllFromEditor" type="button">Apply all pending</button>' +
+        '<button id="btnCancelNodeEdit" type="button" class="ghost">Reset editor</button>' +
+        '<button id="btnModalCancel" type="button" class="ghost">Cancel</button>' +
+      '</div>' +
+      '<div class="modal-note" id="nodeEditStatus">Stage this edit, add more changes if needed, then apply all pending changes once.</div>';
+  }
+
+  function openTreeEditorModal(id) {
+    if (!id || !visualTreeRegistry[id]) return;
+    visualTreeSelected = id;
+    syncTreeSelection(id);
+    renderNodeDetails(id);
+    var d = visualTreeRegistry[id];
+    var pendingEdit = getPendingEdit(id);
+    var editorValue = pendingEdit ? pendingEdit.replacement : (d.formula || '');
+    if (treeEditorModalTitle) treeEditorModalTitle.textContent = (d.title || 'Selected Node') + ' — ' + (d.type || 'Node');
+    if (treeEditorModalSubtitle) treeEditorModalSubtitle.textContent = 'Editing the exact source segment only. Stage changes first, then apply all pending changes once.';
+    if (treeEditorModalBody) treeEditorModalBody.innerHTML = renderEditorFormHtml(d, editorValue);
+    if (treeEditorModal) {
+      treeEditorModal.classList.add('open');
+      treeEditorModal.setAttribute('aria-hidden', 'false');
+      document.body.classList.add('modal-lock');
+      window.setTimeout(function () { var ta = $('nodeEditText'); if (ta) { ta.focus(); ta.select(); updateNodeEditPreview(); } }, 0);
+    }
+  }
+
+  function renderNodeDetails(id) {
+    if (!nodeDetails) return;
+    var d = visualTreeRegistry[id];
+    if (!d) {
+      nodeDetails.classList.remove('modified-context');
+      nodeDetails.classList.remove('pending-context');
+      nodeDetails.innerHTML = '<div class="detail-empty">Click a node to select it. Double-click any IF or return card to open the editor.</div>';
+      return;
+    }
+    var canEdit = d.range && typeof d.range.start === 'number' && typeof d.range.end === 'number';
+    var rangeChip = canEdit ? '<span class="source-range">source: ' + d.range.start + '–' + d.range.end + '</span>' : '<span class="source-range">source: unavailable</span>';
+    var fields = d.fields && d.fields.length ? fieldsHtml(d.fields) : '<span class="field-pill dim">No fields</span>';
+    var isModified = isModifiedNode(id);
+    var pendingEdit = getPendingEdit(id);
+    var isPending = !!pendingEdit;
+    nodeDetails.classList.toggle('modified-context', isModified);
+    nodeDetails.classList.toggle('pending-context', isPending);
+    var modBadge = isModified ? '<span class="modified-badge">Last modified</span>' : '';
+    var pendingBadge = isPending ? '<span class="pending-badge">Pending</span>' : '';
+    var selectedBar =
+      '<div class="selected-node-bar">' +
+        '<div class="selected-node-title"><strong>' + escapeHtml(d.title || 'Selected Node') + '</strong><span>' + escapeHtml(d.type || 'Node') + '</span>' + modBadge + pendingBadge + '</div>' +
+        '<div class="selected-node-meta">' + rangeChip + '<span class="selected-node-fields-label">Fields</span><span class="selected-node-fields">' + fields + '</span></div>' +
+      '</div>' +
+      '<div class="compact-node-help">Double-click the selected tree card to edit it in a focused pop-up window. Single click selects / expands the tree only.</div>';
+    nodeDetails.innerHTML = selectedBar;
+    restartMotion(nodeDetails, 'details-refresh');
+  }
+
+  function renderVisualTreeFromData() {
+    if (!visualTree) return;
+    visualTreeRegistry = {};
+    if (!visualTreeData || !visualTreeData.hasTree || !visualTreeData.root) {
+      var msg = visualTreeData && visualTreeData.message ? visualTreeData.message : 'No IF decision tree detected.';
+      visualTree.innerHTML = '<div class="tree-empty">' + escapeHtml(msg) + '</div>';
+      renderNodeDetails(null);
+      updateExportHtmlButton();
+      return;
+    }
+    visualTree.innerHTML = renderIfNode(visualTreeData.root);
+    if (!visualTreeSelected || !visualTreeRegistry[visualTreeSelected]) visualTreeSelected = visualTreeData.root.id;
+    renderNodeDetails(visualTreeSelected);
+    renderPendingChangesPanel();
+    updateExportHtmlButton();
+  }
+
+  function renderVisualTree(data) {
+    visualTreeData = data;
+    var restore = pendingTreeRestore;
+    pendingTreeRestore = null;
+    if (restore && data && data.root) restoreTreeExpansion(data, restore);
+    else initializeTreeExpansion(data);
+    renderVisualTreeFromData();
+    if (restore && typeof restore.scrollY === 'number') {
+      window.setTimeout(function () { window.scrollTo(0, restore.scrollY); }, 0);
+    }
+  }
+
+  function cssEsc(v) {
+    if (window.CSS && CSS.escape) return CSS.escape(v);
+    return String(v).replace(/[^a-zA-Z0-9_-]/g, '\\$&');
+  }
+
+  function restartMotion(el, cls) {
+    if (!el) return;
+    el.classList.remove(cls);
+    void el.offsetWidth;
+    el.classList.add(cls);
+    window.setTimeout(function () { if (el) el.classList.remove(cls); }, 320);
+  }
+
+  function syncTreeSelection(id) {
+    if (!visualTree) return;
+    var selected = visualTree.querySelectorAll('.if-node.selected,.result-node.selected');
+    for (var i = 0; i < selected.length; i++) selected[i].classList.remove('selected');
+    var btn = visualTree.querySelector('[data-node-id="' + cssEsc(id) + '"]');
+    if (btn) btn.classList.add('selected');
+  }
+
+  function setChildrenHeight(children, open) {
+    if (!children) return;
+    if (open) {
+      children.classList.remove('tree-collapsed');
+      children.classList.add('tree-open');
+      children.style.visibility = 'visible';
+      children.style.maxHeight = '0px';
+      children.style.opacity = '0';
+      children.style.transform = 'translateY(-7px)';
+      void children.offsetHeight;
+      children.style.maxHeight = children.scrollHeight + 'px';
+      children.style.opacity = '1';
+      children.style.transform = 'translateY(0)';
+      window.setTimeout(function () {
+        if (children.classList.contains('tree-open')) children.style.maxHeight = 'none';
+      }, 310);
+    } else {
+      if (children.style.maxHeight === 'none' || !children.style.maxHeight) children.style.maxHeight = children.scrollHeight + 'px';
+      void children.offsetHeight;
+      children.classList.remove('tree-open');
+      children.classList.add('tree-collapsed');
+      children.style.maxHeight = '0px';
+      children.style.opacity = '0';
+      children.style.transform = 'translateY(-7px)';
+    }
+  }
+
+  function syncTreeExpansionState(id, animate) {
+    if (!visualTree) return;
+    var open = visualTreeExpanded[id] === true;
+    var btn = visualTree.querySelector('[data-node-id="' + cssEsc(id) + '"].if-node');
+    if (btn) {
+      btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+      var chip = btn.querySelector('.tree-toggle-chip');
+      if (chip) chip.textContent = 'Click to ' + (open ? 'collapse' : 'expand');
+    }
+    var children = visualTree.querySelector('[data-children-for="' + cssEsc(id) + '"]');
+    if (children) {
+      children.setAttribute('aria-hidden', open ? 'false' : 'true');
+      var currentlyOpen = children.classList.contains('tree-open') && !children.classList.contains('tree-collapsed');
+      if (animate && currentlyOpen !== open) setChildrenHeight(children, open);
+      else {
+        children.classList.toggle('tree-open', open);
+        children.classList.toggle('tree-collapsed', !open);
+        children.style.maxHeight = open ? 'none' : '0px';
+        children.style.opacity = open ? '1' : '0';
+        children.style.transform = open ? 'translateY(0)' : 'translateY(-7px)';
+        children.style.visibility = open ? 'visible' : 'hidden';
+      }
+    }
+  }
+
+  function syncAllTreeExpansion(animate) {
+    if (!visualTreeData || !visualTreeData.root) return;
+    walkIfNodes(visualTreeData.root, function (node) { syncTreeExpansionState(node.id, animate); });
+  }
+
+  function selectAndMaybeToggleTreeNode(id, toggle) {
+    if (!id || !visualTreeRegistry[id]) return;
+    visualTreeSelected = id;
+    syncTreeSelection(id);
+    if (toggle && Object.prototype.hasOwnProperty.call(visualTreeExpanded, id)) {
+      visualTreeExpanded[id] = !visualTreeExpanded[id];
+      syncTreeExpansionState(id, true);
+      restartMotion(visualTree, 'tree-motion-pulse');
+    }
+    renderNodeDetails(id);
+  }
+
+  function renderReviewAssistant(src, formatted, preserved) {
+    var metrics;
+    try { metrics = Formatter.complexityMetrics(src, formatted); }
+    catch (e) { resetReviewAssistant('Review unavailable'); return; }
+
+    var cls = metrics.level.toLowerCase().replace(/\s+/g, '-');
+    if (cComplexity) {
+      cComplexity.className = 'v ' + cls;
+      cComplexity.textContent = metrics.level + ' (' + metrics.score + '/100)';
+    }
+    setText(cIfs, String(metrics.ifCount));
+    setText(cFieldsUsed, String(metrics.fieldCount));
+    setText(cDepth, String(metrics.maxDepth));
+    setText(reviewStatus, preserved && preserved.ok ? 'Review complete — logic preserved' : 'Review complete — manual check advised');
+
+    try { renderVisualTree(Formatter.decisionTree(src)); }
+    catch (e2) { resetVisualTree('Could not generate the visual tree for this input.'); }
+    renderFieldList(metrics.fields);
+
+  }
+
+  // ---- main: Format ----
+  function doFormat() {
+    var src = input.value;
+    if (!src.trim()) {
+      renderOutputEmpty('Nothing to format — paste a formula or click "Load sample".');
+      setDot(cFmt, 'warn', 'Empty input');
+      preserveBadge.innerHTML = '';
+      renderWarnings([{ level: 'warn', msg: 'Input is empty.' }]);
+      resetReviewAssistant('Waiting for input');
+      return;
+    }
+
+    // code mode (Groovy/JS) → never change keyword case
+    var codeMode = /[{};]/.test(src);
+    var useUpper = optUpper.checked && !codeMode;
+
+    var formatted;
+    try {
+      formatted = Formatter.formatCode(src, { upper: useUpper });
+    } catch (e) {
+      // never crash on messy paste — show the original, flag it
+      renderOutputEmpty('Could not format this input. It is left unchanged so no logic is lost.');
+      setDot(cFmt, 'bad', 'Failed');
+      preserveBadge.innerHTML = '';
+      renderWarnings([{ level: 'warn', msg: 'Formatter could not parse this input: ' + e.message }]);
+      resetReviewAssistant('Review unavailable');
+      return;
+    }
+
+    renderOutput(formatted);
+    setDot(cFmt, 'ok', 'Formatted');
+
+    // logic-preservation check (re-tokenize input vs output)
+    var preserved = Formatter.logicPreserved(src, formatted);
+    if (preserved.ok) {
+      preserveBadge.innerHTML = '<span class="badge ok">\u2713 Logic preserved</span>';
+    } else {
+      preserveBadge.innerHTML = '<span class="badge warn">\u26A0 Review — input may be malformed</span>';
+    }
+
+    // validation warnings
+    renderWarnings(Formatter.validate(src));
+
+    // phase 2 review assistant
+    renderReviewAssistant(src, formatted, preserved);
+
+    if (codeMode && optUpper.checked) {
+      // tell the user why uppercasing was skipped
+      var note = document.createElement('li');
+      note.className = 'ok';
+      note.innerHTML = '<span class="ic">\u2139</span><span>Detected code (braces/semicolons present): keyword case left unchanged to protect case-sensitive Groovy/JS.</span>';
+      warns.appendChild(note);
+    }
+  }
+
+
+  function exportFileName() {
+    var d = new Date();
+    var pad = function (n) { return String(n).padStart(2, '0'); };
+    return 'export-html-' + d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + '-' + pad(d.getHours()) + pad(d.getMinutes()) + '.html';
+  }
+
+  function exportNodeId(sourceId, label) {
+    return String(sourceId || 'node') + '-missing-' + String(label || 'branch').toLowerCase();
+  }
+
+  function exportTextLines(text, charsPerLine) {
+    text = String(text || '(nothing)');
+    var chunks = text.split(/\n/);
+    var lines = 0;
+    for (var i = 0; i < chunks.length; i++) {
+      lines += Math.max(1, Math.ceil(chunks[i].length / charsPerLine));
+    }
+    return lines;
+  }
+
+  function exportCardHeight(kind, body) {
+    var bodyLines = exportTextLines(body, kind === 'if' ? 45 : 42);
+    var min = kind === 'if' ? 150 : 140;
+    var calculated = 86 + (bodyLines * 23);
+    return Math.max(min, Math.min(calculated, 360));
+  }
+
+  function exportBranchInfo(branch, label, sourceId) {
+    var key = String(label || '').toLowerCase();
+    if (!branch) {
+      return { kind: 'result', id: exportNodeId(sourceId, label), title: 'No branch detected', body: '', cls: 'result-card ' + key, meta: 'Return' };
+    }
+    if (branch.kind === 'if') return { kind: 'if', node: branch.child };
+    return {
+      kind: 'result', id: branch.id || exportNodeId(sourceId, label),
+      title: branch.title || (label + ' result'), body: branch.summary || branch.formula || '',
+      cls: 'result-card ' + key, meta: 'Return'
+    };
+  }
+
+  function measureExportLeaf(info) {
+    var h = exportCardHeight('result', info.body);
+    return { kind: 'leaf', id: info.id, title: info.title, body: info.body, cls: info.cls, meta: info.meta, cardH: h, height: h };
+  }
+
+  function measureExportIf(node) {
+    if (!node) return measureExportLeaf({ id: 'missing-if', title: 'Missing decision', body: '', cls: 'if-card', meta: 'Decision' });
+    var trueInfo = exportBranchInfo(node.trueBranch, 'TRUE', node.id);
+    var falseInfo = exportBranchInfo(node.falseBranch, 'FALSE', node.id);
+    var trueMeasure = trueInfo.kind === 'if' ? measureExportIf(trueInfo.node) : measureExportLeaf(trueInfo);
+    var falseMeasure = falseInfo.kind === 'if' ? measureExportIf(falseInfo.node) : measureExportLeaf(falseInfo);
+    var nodeH = exportCardHeight('if', node.condition || node.conditionFormula || '');
+    var branchGap = 86;
+    var branchesH = trueMeasure.height + branchGap + falseMeasure.height;
+    return {
+      kind: 'if', node: node, id: node.id || 'if', cardH: nodeH,
+      trueInfo: trueInfo, falseInfo: falseInfo, trueMeasure: trueMeasure, falseMeasure: falseMeasure,
+      branchGap: branchGap, height: Math.max(nodeH, branchesH)
+    };
+  }
+
+  function buildExportAbsoluteLayout(root) {
+    var CARD_W = 380, COL_GAP = 600, MARGIN_X = 70, MARGIN_Y = 58;
+    var measured = measureExportIf(root);
+    var cards = [], connections = [], nodeMap = {}, maxRight = 0, maxBottom = 0;
+
+    function addCard(id, title, body, cls, meta, depth, y, h) {
+      var x = MARGIN_X + depth * COL_GAP;
+      var card = { id: id, title: title || '', body: body || '(nothing)', cls: cls || '', meta: meta || '', x: x, y: y, w: CARD_W, h: h };
+      cards.push(card);
+      nodeMap[id] = card;
+      maxRight = Math.max(maxRight, x + CARD_W);
+      maxBottom = Math.max(maxBottom, y + h);
+      return card;
+    }
+
+    function layoutLeaf(measure, depth, top) {
+      var y = top + (measure.height / 2) - (measure.cardH / 2);
+      addCard(measure.id, measure.title, measure.body, measure.cls, measure.meta, depth, y, measure.cardH);
+      return measure.id;
+    }
+
+    function layoutIf(measure, depth, top) {
+      var node = measure.node;
+      var nodeY = top + (measure.height / 2) - (measure.cardH / 2);
+      var sourceId = node.id || 'if';
+      addCard(sourceId, node.title || 'IF', node.condition || node.conditionFormula || '', 'if-card', 'Decision', depth, nodeY, measure.cardH);
+
+      var trueTop = top;
+      var falseTop = top + measure.trueMeasure.height + measure.branchGap;
+      var trueTargetId = measure.trueInfo.kind === 'if' ? layoutIf(measure.trueMeasure, depth + 1, trueTop) : layoutLeaf(measure.trueMeasure, depth + 1, trueTop);
+      var falseTargetId = measure.falseInfo.kind === 'if' ? layoutIf(measure.falseMeasure, depth + 1, falseTop) : layoutLeaf(measure.falseMeasure, depth + 1, falseTop);
+      connections.push({ from: sourceId, to: trueTargetId, label: 'TRUE', type: 'true' });
+      connections.push({ from: sourceId, to: falseTargetId, label: 'FALSE', type: 'false' });
+      return sourceId;
+    }
+
+    layoutIf(measured, 0, MARGIN_Y);
+    return {
+      cards: cards, connections: connections, nodeMap: nodeMap,
+      width: maxRight + MARGIN_X, height: maxBottom + MARGIN_Y,
+      cardWidth: CARD_W
+    };
+  }
+
+  function exportCardHtml(card) {
+    return '<div class="export-card ' + escapeHtml(card.cls || '') + '" data-export-node-id="' + escapeHtml(card.id || '') + '" style="left:' + Math.round(card.x) + 'px;top:' + Math.round(card.y) + 'px;width:' + Math.round(card.w) + 'px;height:' + Math.round(card.h) + 'px">' +
+      (card.meta ? '<div class="export-card-step">' + escapeHtml(card.meta) + '</div>' : '') +
+      '<div class="export-card-title">' + escapeHtml(card.title || '') + '</div>' +
+      '<div class="export-card-body">' + escapeHtml(card.body || '(nothing)') + '</div>' +
+    '</div>';
+  }
+
+  function exportConnectorPath(conn, layout) {
+    var from = layout.nodeMap[conn.from], to = layout.nodeMap[conn.to];
+    if (!from || !to) return '';
+    var sx = from.x + from.w;
+    var sy = from.y + from.h * (conn.type === 'true' ? 0.34 : 0.66);
+    var ex = to.x;
+    var ey = to.y + to.h / 2;
+    var midX = sx + Math.max(96, Math.min(190, (ex - sx) * 0.46));
+    var labelX = sx + Math.min(118, Math.max(72, (midX - sx) * 0.68));
+    var labelY = sy - 12;
+    var d = 'M ' + Math.round(sx) + ' ' + Math.round(sy) +
+      ' H ' + Math.round(midX) +
+      ' V ' + Math.round(ey) +
+      ' H ' + Math.round(ex);
+    var type = conn.type === 'true' ? 'true' : 'false';
+    var marker = type === 'true' ? 'url(#arrowTrue)' : 'url(#arrowFalse)';
+    return '<path class="connector-path ' + type + '" d="' + d + '" marker-end="' + marker + '"></path>' +
+      '<g class="connector-label-group ' + type + '">' +
+        '<rect class="connector-label-bg ' + type + '" x="' + Math.round(labelX - 32) + '" y="' + Math.round(labelY - 14) + '" rx="14" ry="14" width="64" height="28"></rect>' +
+        '<text class="connector-label ' + type + '" x="' + Math.round(labelX) + '" y="' + Math.round(labelY + 5) + '" text-anchor="middle">' + escapeHtml(String(conn.label || '').toUpperCase()) + '</text>' +
+      '</g>';
+  }
+
+  function buildExportHtmlDocument() {
+    var layout = buildExportAbsoluteLayout(visualTreeData.root);
+    var generatedAt = new Date().toLocaleString();
+    var cardsHtml = layout.cards.map(exportCardHtml).join('');
+    var connectorsHtml = layout.connections.map(function (c) { return exportConnectorPath(c, layout); }).join('');
+    return '<!DOCTYPE html>' +
+      '<html lang="en"><head><meta charset="UTF-8" />' +
+      '<meta name="viewport" content="width=device-width, initial-scale=1.0" />' +
+      '<title>Export HTML</title>' +
+      '<style>' +
+      ':root{--bg:#f1f5f9;--panel:#fff;--ink:#0f172a;--text:#1e293b;--muted:#64748b;--line:#dbe4f0;--accent:#3b6fed;--ok:#15803d;--ok-soft:#dcfce7;--warn:#b45309;--warn-soft:#ffedd5;--true:#22c55e;--false:#f59e0b;--mono:ui-monospace,"Cascadia Code","SFMono-Regular","Consolas","Menlo",monospace;--sans:-apple-system,"Segoe UI",Roboto,system-ui,Helvetica,Arial,sans-serif}' +
+      '*{box-sizing:border-box}html,body{margin:0}body{background:var(--bg);color:var(--text);font-family:var(--sans);line-height:1.45;-webkit-font-smoothing:antialiased}.page{padding:28px;min-width:1040px}' +
+      '.export-head{background:var(--ink);color:#fff;border-radius:18px;padding:20px 24px;margin-bottom:18px;box-shadow:0 18px 45px rgba(15,23,42,.14)}.export-head h1{margin:0;font-size:21px}.export-head p{margin:6px 0 0;color:#bac6d7;font-size:13px}' +
+      '.export-guide{display:flex;flex-wrap:wrap;gap:10px;align-items:center;background:#fff;border:1px solid var(--line);border-radius:14px;padding:11px 14px;margin-bottom:16px;box-shadow:0 4px 14px rgba(15,23,42,.04);font-size:12px;color:var(--muted)}.guide-item{display:inline-flex;align-items:center;gap:7px;font-weight:800;color:#334155}.guide-dot{width:11px;height:11px;border-radius:50%;display:inline-block;background:var(--accent)}.guide-dot.true{background:var(--true)}.guide-dot.false{background:var(--false)}.guide-dot.result{background:#e2e8f0;border:1px solid #94a3b8}' +
+      '.canvas{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:0;overflow:auto;box-shadow:0 8px 28px rgba(15,23,42,.08);min-height:420px}.flow-stage{position:relative;width:' + Math.round(layout.width) + 'px;height:' + Math.round(layout.height) + 'px;min-width:' + Math.round(layout.width) + 'px;background:radial-gradient(circle at 28px 28px,rgba(59,111,237,.045) 0 2px,transparent 2px 100%);background-size:34px 34px}.connector-layer{position:absolute;left:0;top:0;width:' + Math.round(layout.width) + 'px;height:' + Math.round(layout.height) + 'px;z-index:1;pointer-events:none;overflow:visible}' +
+      '.export-card{position:absolute;z-index:2;background:#fff;border:1px solid var(--line);border-radius:16px;padding:14px 15px;box-shadow:0 10px 28px rgba(15,23,42,.08);overflow:hidden}.if-card{border-left:6px solid var(--accent);background:linear-gradient(135deg,#fff,#f7faff)}.result-card.true{border-left:6px solid var(--true)}.result-card.false{border-left:6px solid var(--false)}.export-card-step{display:inline-flex;margin-bottom:7px;border-radius:999px;background:#f1f5f9;border:1px solid #e2e8f0;color:#475569;font-size:10px;font-weight:950;letter-spacing:.5px;text-transform:uppercase;padding:3px 7px}.if-card .export-card-step{background:#eef4ff;border-color:#d7e3ff;color:#2c55c4}.result-card.true .export-card-step{background:#dcfce7;border-color:#bbf7d0;color:#15803d}.result-card.false .export-card-step{background:#ffedd5;border-color:#fed7aa;color:#b45309}.export-card-title{font-size:11px;font-weight:950;letter-spacing:.55px;text-transform:uppercase;color:var(--muted);margin-bottom:6px}.if-card .export-card-title{color:#1e3a8a}.export-card-body{font-size:13px;color:#263247;white-space:pre-wrap;word-break:break-word;max-height:calc(100% - 52px);overflow:auto;padding-right:4px}' +
+      '.connector-path{fill:none;stroke-width:3;stroke-linecap:round;stroke-linejoin:round}.connector-path.true{stroke:var(--true)}.connector-path.false{stroke:var(--false)}.connector-label-bg{fill:#fff;stroke-width:1.2}.connector-label-bg.true{stroke:#86efac}.connector-label-bg.false{stroke:#fdba74}.connector-label{font:900 11px -apple-system,"Segoe UI",Roboto,system-ui,Helvetica,Arial,sans-serif;letter-spacing:.55px}.connector-label.true{fill:#15803d}.connector-label.false{fill:#b45309}' +
+      '.footer{margin-top:14px;color:var(--muted);font-size:12px}.footer code{font-family:var(--mono)}@media(max-width:980px){.page{min-width:0;padding:16px}.export-card{width:340px}.canvas{border-radius:14px}}' +
+      '</style></head><body><main class="page">' +
+      '<header class="export-head"><h1>Export HTML</h1><p>Generated locally on ' + escapeHtml(generatedAt) + '. No data was uploaded.</p></header>' +
+      '<div class="export-guide" aria-label="Legend"><span class="guide-item"><span class="guide-dot"></span>Decision</span><span class="guide-item"><span class="guide-dot true"></span>TRUE path</span><span class="guide-item"><span class="guide-dot false"></span>FALSE path</span><span class="guide-item"><span class="guide-dot result"></span>Return result</span><span>Follow the arrows from left to right.</span></div>' +
+      '<section class="canvas" aria-label="Exported formula view"><div class="flow-stage" id="flowStage"><svg class="connector-layer" id="flowSvg" viewBox="0 0 ' + Math.round(layout.width) + ' ' + Math.round(layout.height) + '" aria-hidden="true"><defs><marker id="arrowTrue" markerWidth="13" markerHeight="13" refX="11" refY="6.5" orient="auto" markerUnits="strokeWidth"><path d="M2,2 L11,6.5 L2,11 Z" fill="#22c55e"></path></marker><marker id="arrowFalse" markerWidth="13" markerHeight="13" refX="11" refY="6.5" orient="auto" markerUnits="strokeWidth"><path d="M2,2 L11,6.5 L2,11 Z" fill="#f59e0b"></path></marker></defs>' + connectorsHtml + '</svg>' + cardsHtml + '</div></section>' +
+      '<div class="footer">Generated by <code>Local Code Formatter &amp; Readability Tool</code>.</div>' +
+      '</main></body></html>';
+  }
+
+  function doExportHtml() {
+    if (!visualTreeData || !visualTreeData.hasTree || !visualTreeData.root) {
+      showTreeToast('Format a nested IF formula before exporting HTML.', 'warn');
+      return;
+    }
+    var blob = new Blob([buildExportHtmlDocument()], { type: 'text/html;charset=utf-8' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = exportFileName();
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+    showTreeToast('HTML export generated successfully.', 'ok');
+  }
+
+  // ---- output actions ----
+  function doCopy() {
+    if (!lastOutput) return;
+    var btn = $('btnCopy'), original = btn.textContent;
+    var done = function () { btn.textContent = 'Copied \u2713'; setTimeout(function () { btn.textContent = original; }, 1400); };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(lastOutput).then(done, fallbackCopy);
+    } else { fallbackCopy(); }
+    function fallbackCopy() {
+      var ta = document.createElement('textarea');
+      ta.value = lastOutput; ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.select();
+      try { document.execCommand('copy'); done(); } catch (e) {}
+      document.body.removeChild(ta);
+    }
+  }
+  function doDownload() {
+    if (!lastOutput) return;
+    var blob = new Blob([lastOutput], { type: 'text/plain;charset=utf-8' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url; a.download = 'formatted-code.txt';
+    document.body.appendChild(a); a.click();
+    document.body.removeChild(a);
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+  }
+  function clearOutput() {
+    renderOutputEmpty('Formatted code will appear here.');
+    setDot(cFmt, '', 'Not formatted');
+    preserveBadge.innerHTML = '';
+    renderWarnings([{ level: 'ok', msg: 'Paste code and click Format Code to run checks.' }]);
+    resetReviewAssistant('Waiting for input');
+  }
+  function clearInput() {
+    input.value = '';
+    lastTreeEditUndo = null;
+    lastModifiedNodeIds = {};
+    clearPendingEdits();
+    updateUndoEditButton();
+    refreshStatus();
+    resetReviewAssistant('Waiting for input');
+    closeTreeEditorModal();
+    input.focus();
+  }
+  function loadSample() {
+    input.value = SAMPLE;
+    lastModifiedNodeIds = {};
+    pendingTreeRestore = null;
+    if (treeToast) treeToast.className = 'tree-toast';
+    closeTreeEditorModal();
+    refreshStatus();
+    doFormat();
+    input.focus();
+  }
+
+  // ---- workspace tabs ----
+  function switchWorkspaceTab(name) {
+    var buttons = document.querySelectorAll('.tab-btn[data-tab]');
+    var panels = document.querySelectorAll('.tab-panel[data-panel]');
+    for (var i = 0; i < buttons.length; i++) {
+      buttons[i].classList.toggle('active', buttons[i].getAttribute('data-tab') === name);
+    }
+    for (var j = 0; j < panels.length; j++) {
+      panels[j].classList.toggle('active', panels[j].getAttribute('data-panel') === name);
+    }
+  }
+
+  var tabButtons = document.querySelectorAll('.tab-btn[data-tab]');
+  for (var tb = 0; tb < tabButtons.length; tb++) {
+    tabButtons[tb].addEventListener('click', function () {
+      switchWorkspaceTab(this.getAttribute('data-tab'));
+    });
+  }
+
+  // ---- wire events ----
+  input.addEventListener('input', function () { lastModifiedNodeIds = {}; pendingTreeRestore = null; clearPendingEdits(); closeTreeEditorModal(); if (treeToast) treeToast.className = 'tree-toast'; refreshStatus(); });
+  input.addEventListener('keydown', function (e) {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); doFormat(); }
+  });
+  $('btnFormat').addEventListener('click', doFormat);
+  $('btnCopy').addEventListener('click', doCopy);
+  $('btnDownload').addEventListener('click', doDownload);
+  $('btnClearOut').addEventListener('click', clearOutput);
+  $('btnClearIn').addEventListener('click', clearInput);
+  $('btnSample').addEventListener('click', loadSample);
+  optUpper.addEventListener('change', function () { if (lastOutput) doFormat(); });
+  optHighlight.addEventListener('change', function () { updateHighlightLegend(); if (lastOutput) renderOutput(lastOutput); });
+  if (visualTree) {
+    visualTree.addEventListener('click', function (e) {
+      var el = e.target && e.target.closest ? e.target.closest('[data-node-id]') : null;
+      if (!el) return;
+      var id = el.getAttribute('data-node-id');
+      var isIf = (el.className || '').indexOf('if-node') >= 0;
+      window.clearTimeout(treeClickTimer);
+      treeClickTimer = window.setTimeout(function () { selectAndMaybeToggleTreeNode(id, isIf); }, 190);
+    });
+    visualTree.addEventListener('dblclick', function (e) {
+      var el = e.target && e.target.closest ? e.target.closest('[data-node-id]') : null;
+      if (!el) return;
+      e.preventDefault();
+      window.clearTimeout(treeClickTimer);
+      var id = el.getAttribute('data-node-id');
+      openTreeEditorModal(id);
+    });
+  }
+  if (btnTreeExpandAll) btnTreeExpandAll.addEventListener('click', function () {
+    if (!visualTreeData || !visualTreeData.root) return;
+    walkIfNodes(visualTreeData.root, function (node) { visualTreeExpanded[node.id] = true; });
+    syncAllTreeExpansion(true);
+    restartMotion(visualTree, 'tree-motion-pulse');
+  });
+  if (btnTreeCollapseAll) btnTreeCollapseAll.addEventListener('click', function () {
+    if (!visualTreeData || !visualTreeData.root) return;
+    walkIfNodes(visualTreeData.root, function (node) { visualTreeExpanded[node.id] = false; });
+    visualTreeSelected = visualTreeData.root.id;
+    syncAllTreeExpansion(true);
+    syncTreeSelection(visualTreeSelected);
+    renderNodeDetails(visualTreeSelected);
+    restartMotion(visualTree, 'tree-motion-pulse');
+  });
+  if (btnExportHtml) btnExportHtml.addEventListener('click', doExportHtml);
+  if (btnTreeReset) btnTreeReset.addEventListener('click', function () {
+    if (!visualTreeData) return;
+    initializeTreeExpansion(visualTreeData);
+    syncAllTreeExpansion(true);
+    syncTreeSelection(visualTreeSelected);
+    renderNodeDetails(visualTreeSelected);
+    restartMotion(visualTree, 'tree-motion-pulse');
+  });
+  if (btnApplyPendingAll) btnApplyPendingAll.addEventListener('click', applyPendingEdits);
+  if (btnDiscardPending) btnDiscardPending.addEventListener('click', function () { discardPendingEdits(true); });
+  if (btnTreeUndoEdit) btnTreeUndoEdit.addEventListener('click', undoLastTreeEdit);
+  if (pendingChangesPanel) {
+    pendingChangesPanel.addEventListener('click', function (e) {
+      var btn = e.target && e.target.closest ? e.target.closest('button[data-action]') : null;
+      if (!btn) return;
+      var id = btn.getAttribute('data-id');
+      var action = btn.getAttribute('data-action');
+      if (action === 'select-pending') selectAndMaybeToggleTreeNode(id, false);
+      else if (action === 'remove-pending') {
+        delete pendingNodeEdits[id];
+        pendingEditOrder = pendingEditOrder.filter(function (x) { return x !== id; });
+        renderPendingChangesPanel();
+        renderVisualTreeFromData();
+        showTreeToast('Pending change removed.', 'warn');
+      }
+    });
+  }
+  if (treeEditorModal) {
+    treeEditorModal.addEventListener('input', function (e) {
+      if (e.target && e.target.id === 'nodeEditText') updateNodeEditPreview();
+    });
+    treeEditorModal.addEventListener('click', function (e) {
+      if (e.target === treeEditorModal) { closeTreeEditorModal(); return; }
+      var target = e.target;
+      if (!target || !target.id) return;
+      if (target.id === 'btnCloseTreeEditorModal' || target.id === 'btnModalCancel') closeTreeEditorModal();
+      else if (target.id === 'btnJumpToSource') jumpToSourceRange();
+      else if (target.id === 'btnStageNodeEdit') stageNodeEdit();
+      else if (target.id === 'btnApplyAllFromEditor') applyPendingEdits();
+      else if (target.id === 'btnCancelNodeEdit') resetNodeEditor();
+    });
+    treeEditorModal.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') { e.preventDefault(); closeTreeEditorModal(); }
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); stageNodeEdit(); }
+    });
+  }
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && treeEditorModal && treeEditorModal.classList.contains('open')) closeTreeEditorModal();
+  });
+
+
+  // initial state
+  updateHighlightLegend();
+  resetReviewAssistant('Waiting for input');
+  refreshStatus();
+})();
+</script>
+</body>
+</html>
